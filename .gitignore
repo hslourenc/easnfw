@@ -1,0 +1,4 @@
+doc/requirements/out
+*.bkp
+*.bak
+fw/app/build
