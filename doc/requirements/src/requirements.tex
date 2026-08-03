@@ -118,11 +118,14 @@
 % Custom commands
 % -----------------------------------------------------------------------------
 \newcommand{\firmware}{\textit{EASN-FW}}
+\newcommand{\firmwaresensor}{\textit{EASN-FW-SENSOR}}
+\newcommand{\firmwarecloud}{\textit{EASN-FW-CLOUD}}
 \newcommand{\system}{\textit{EASN}}
 
 \newcommand{\modeinit}{\texttt{MODE\_INIT}}
 \newcommand{\modesample}{\texttt{MODE\_SAMPLE}}
 \newcommand{\modeprocess}{\texttt{MODE\_PROCESS}}
+\newcommand{\modesendcloud}{\texttt{MODE\_SEND_CLOUD}}
 \newcommand{\modesend}{\texttt{MODE\_SEND}}
 \newcommand{\modehandleloss}{\texttt{MODE\_HANDLE\_LOSS}}
 \newcommand{\modesleep}{\texttt{MODE\_SLEEP}}
@@ -271,11 +274,17 @@ Nordic Semiconductor.
 
 \firmware{} will run on and control the nRF5340 System-on-Chip (SoC) from the
 nRF5340 Audio DK and the nRF9151 System-in-Package (SiP) from the nRF9151 DK.
-The nRF5340 SoC will be used for the data acquisition and processing, and the
-nRF9151 SiP will be used for the interface with the cloud.
+\firmware{} is hence subdivided into two different components: one that will run
+on nRF5340 and be mainly responsible for interfacing with the system sensors,
+and processing, storing and retrieving the data acquired through them, and is
+therefore designated as \firmwaresensor{}; and another one that will run on
+nRF9151 and be mainly responsible for interfacing with the cloud, and is
+therefore designated as \firmwarecloud{}. \firmwaresensor{} and \firmwarecloud{}
+will communicate over SPI, with \firmwaresensor{} as the controller and
+\firmwaresensor{} as the responder.
 
-The system sensors to be controlled by \firmware{} are described in
-Table \ref{table:sensors}.
+The sensors with which \firmwaresensor{} interface are described in Table
+\ref{table:sensors}.
 
 % TODO: check sensors to be used and connections
 \begin{table}[h!]
@@ -290,29 +299,41 @@ Table \ref{table:sensors}.
 \label{table:sensors}
 \end{table}
 
-\system{} will communicate with the cloud using HTTP over LTE-M through the
-built-in LTE-M modem of nRF9151. Communication is unidirectional: data flows
+\firmwarecloud{} will communicate with the cloud using HTTP over LTE-M through
+the built-in LTE-M modem of nRF9151. Communication is unidirectional: data flows
 from the sensing node to the cloud, but not from the cloud to the sensing node.
 
-The system itself does not provide a direct user interface.
+\paragraph{User interfaces}
+
+\firmwaresensor{} will provide a command line interface (CLI) for verifying
+specific features. Such interface will only be enabled when working with the
+``CLI verification image'' (see \ref{section:definition}).
+
+Both \firmwaresensor{} and \firmwarecloud{} will log its own activities through
+the serial-USB interface of their respective boards when logging is enabled.
 
 \subsubsection{Product Functions}
 
-The main functions performed by the firmware are:
+The main functions that will be performed by \firmware{} are described in Table
+\ref{table:functions}.
 
-\begin{itemize}
-    \item acquisition of audio data;
-    \item processing of audio data;
-    \item acquisition of environmental data: temperature, humidity, pressure and
-          volatile organic compounds (VOCs).
-          and pressure; and
-    \item transmission of environmental data and processed audio data to the
-          cloud.
-\end{itemize}
+\begin{table}[h!]
+\caption{EASN-FW functions description}
+\centering
+\begin{tabular}{ m{6cm} m{6cm} }
+    Function                                                                   & Responsible firmware component \\
+    \hline
+    Acquire audio data                                                         & \firmwaresensor{}                \\
+    Process audio data                                                         & \firmwaresensor{}                \\
+    Acquire environmental data                                                 & \firmwaresensor{}                \\
+    Transmit acquired environmental data and processed audio data to the cloud & \firmwarecloud{}
+\end{tabular}
+\label{table:functions}
+\end{table}
 
 \subsubsection{User Characteristics}
 
-Users of the system and firmware are expected to be familiar with general
+Users of \system{} and \firmware{} are expected to be familiar with general
 concepts related to:
 
 \begin{itemize}
@@ -324,7 +345,7 @@ concepts related to:
 
 \subsubsection{Limitations}
 
-The firmware functions and their implementations are constrained by:
+\firmware{} functions and their implementations are constrained by:
 
 \begin{itemize}
     \item the computational, memory, communication, and energy resources of
@@ -344,8 +365,8 @@ The firmware functions and their implementations are constrained by:
 
     \item[Audio track]
     An ordered collection of audio samples captured sequentially over a
-    continuous period of
-    \placeholder{TRACK\_LENGTH} seconds.
+    continuous period of \placeholder{TRACK\_LENGTH} seconds, which will be
+    configurable via Kconfig.
 
     \item[Audio processing algorithm]
     The algorithm used to process the recorded audio tracks.
@@ -354,34 +375,56 @@ The firmware functions and their implementations are constrained by:
     The output, or collection of outputs, produced by the audio processing
     algorithm for a given audio track.
 
-    \item[Atmospheric sample set]
-    A set of atmospheric variables sampled within an interval shorter than
-    10 seconds. The set consists of temperature, humidity, and pressure.
+    \item[Environmental sample set]
+    A set of environamental variables sampled within a short interval. The set
+    consists of temperature, humidity, pressure and VOCs.
 
     \item[Ecoacoustic data payload]
-    A payload periodically transmitted to the cloud. It consists of
-    \placeholder{NUM\_RECORDED\_TRACKS\_BEFORE\_SEND} processed audio tracks.
-
-    Each processed audio track is associated with:
-
-    \begin{itemize}
-        \item an atmospheric sample set; and
-        \item a timestamp indicating when the corresponding audio track was
-              recorded.
-    \end{itemize}
+    A payload transmitted periodically to the cloud that consists of a processed
+    audio track paired with an atmospheric sample set and a timestamp indicating
+    when the corresponding audio track was recorded.
 
     \item[Power-on payload]
-    A payload transmitted to the cloud during system initialization. It
-    consists of:
+    A payload transmitted to the cloud during \firmware{} initialization that
+    consists of \firmwaresensor{} and \firmwarecloud{} respective revisions the
+    reason why the device was last powered off.
 
-    \begin{itemize}
-        \item the firmware revision or revisions; and
-        \item the reason why the device was last powered off.
-    \end{itemize}
+    \item[Self-test sequence]
+    Sequence of tests executed by \firmware{} to verify the correct working of
+    individual software modules, as well as the integration between them. It is
+    broken down into the independent self-test sequence, which is firmware
+    component-specific sequence, meaning that each of \firmwaresensor{} and
+    \firmwarecloud{} has its own independent self-test sequence; and the shared
+    self-test sequence, which is carried out by \firmwaresensor{} and
+    \firmwarecloud{} together.
 
-    \item[Timestamp format]
-    Timestamps included in payloads shall be expressed according to the
-    ISO~8601 format.
+    \item[Production image]
+    Image of the firmware to be used for deployment. Contains all the business
+    logic and logging is disabled. Built when the BUILD\_PROD flag is set.
+
+    \item[Debugging image]
+    Image of the firmware to be used for debugging, it is the same as the
+    production image but with logging enabled. Built when the BUILD\_DEBUG flag
+    is set.
+
+    \item[Development image]
+    Image of the firmware to be used for development, it is the same as the
+    debugging image, but with the self-test sequence included. Built when the
+    BUILD\_DEVELOP flag is set.
+
+    \item[Regression verification image]
+    Image of the firmware that contains only the self-test sequence with logging
+    enabled. Built when the BUILD\_REGR flag is set.
+
+    \item[CLI verification image]
+    Image of the firmware to be used for verifying specific product functions,
+    such as the audio acquisition and processing, through a command-line
+    interface (CLI) running on \firmwaresensor{}. Built when the BUILD\_CLI
+    flag is set. Only valid for \firmwaresensor{}.
+
+    \item[Verification images]
+    Set of images intended to be used solely for verification, comprehends the
+    regression verification image and the CLI verification image.
 
 \end{description}
 
@@ -392,9 +435,10 @@ The firmware functions and their implementations are constrained by:
 \subsection{Operating Modes}
 \label{section:modes}
 
-\subsubsection{Mode List}
+Each of \firmwaresensor{} and \firmwarecloud{} will both operate transitioning
+accross a pre-defined list of modes, which are described next.
 
-The firmware shall operate by transitioning among the following modes:
+\subsubsection{Mode List for \firmwaresensor{}}
 
 \begin{description}[
     style=nextline,
@@ -404,66 +448,143 @@ The firmware shall operate by transitioning among the following modes:
 ]
 
     \item[\modeinit]
-    Initial mode entered after the system is powered on. In this mode, the
-    firmware initializes the required hardware and software components.
+    In this mode, \firmwaresensor{} will:
+    \begin{itemize}
+        \item initialize critical peripherals;
+        \item initialize the software and hardware modules required for its
+              operations according to the active firmware image;
+        \item perform its independent self-test sequence (only applicable for
+              the firmware images that include the self-test sequence);
+        \item wait until \firmwarecloud{} is ready to send data to the cloud
+              (not applicable for the CLI verification image);
+        \item perform the shared self-test sequence (only applicable for the
+              firmware images that include the self-test sequence);
+        \item send the power-on payload to \firmwarecloud{} (not applicable for
+              the verification images).
+    \end{itemize}
+    Entered synchronously when \system{} is powered on. Applicable for all
+    firmware images.
+
+    \item[\modecliverif]
+    In this mode, \firmwaresensor{} will run a CLI through the USB-serial
+    interface of its board for verifying specific product functions. Entered
+    synchronously after initialization is successfully completed (from
+    \modeinit). Only applicable for the CLI verification image.
 
     \item[\modesample]
-    Mode in which the signals to be processed and transmitted to the cloud
-    are sampled.
+    In this mode, \firmwaresensor{} will acquire the audio and environmental
+    data and store the audio data to the external storage. Entered
+    synchronously:
+    \begin{itemize}
+        \item after self-test sequence is successfully completed (from
+              \modeselftest); or
+        \item after initialization is successfully completed (from \modeinit).
+    \end{itemize}
+    Entered asynchronously after PARAM\_INTER\_RECORD\_INTERVAL seconds have
+    passed since the end of the last audio track recording (ideally from
+    \modesleep or \modesendcloud). Applicable to all images except for the
+    verification images.
 
     \item[\modeprocess]
-    Mode in which recorded audio tracks are processed.
+    In this mode, \firmwaresensor{} will retrieve the audio data relative to the
+    last recorded audio track from the external storage, processe it according
+    to the audio processing algorithm, and store the result (processed audio
+    track) back to the external storage. Enetered synchronously after the data
+    relative to a full audio track is stored to the external storage (from
+    \modesample). Applicable to all images except for the verification images.
 
-    \item[\modesend]
-    Mode in which data payloads are transmitted to the cloud.
-
-    \item[\modehandleloss]
-    Mode in which failed payload transmissions or Internet connections are
-    retried using exponential backoff.
+    \item[\modesendcloud]
+    In this mode, \firmwaresensor{} will send the data to be transmitted to the
+    cloud to \firmwarecloud{}. Entered synchronously after the data of the
+    processed audio track is stored to the external storage (from \modeprocess).
+    Applicable to all images except for the verification images.
 
     \item[\modesleep]
-    Energy-saving mode in which the system waits until the beginning of the
-    next recording cycle.
+    Mode in which \firmwaresensor{} will enter an energy-saving state and wait
+    until the beginning of the next audio track recording. Entered synchronously
+    from \modesendcloud after all the data to be transmitted to the cloud has
+    been sent to \firmwarecloud{} and less than PARAM\_INTER\_RECORD\_INTERVAL
+    seconds have passed since the end of the last audo track recording.
+    Applicable to all images except for the verification images.
 
 \end{description}
 
-\subsubsection{Summary of Mode Transitions}
+\subsubsection{Summary of Mode Transitions for \firmwaresensor{}}
 
 \begin{summarybox}
 \begin{itemize}
-    \item \modeinit{} $\rightarrow$ \modesample{}:
-          after successful transmission of the power-on payload.
+    % TODO
+\end{itemize}
+\end{summarybox}
 
-    \item \modeinit{} $\rightarrow$ \modehandleloss{}:
-          if transmission of the power-on payload fails.
+\subsubsection{Mode List for \firmwarecloud{}}
 
-    \item \modehandleloss{} $\rightarrow$ \modesample{}:
-          after successful transmission of a retried power-on payload.
+\begin{description}[
+    style=nextline,
+    leftmargin=0pt,
+    labelindent=0pt,
+    font=\normalfont\bfseries
+]
 
-    \item \modesample{} $\rightarrow$ \modeprocess{}:
-          after successful acquisition of an audio track, its corresponding
-          atmospheric sample set, and its timestamp.
+    \item[\modeinit]
+    In this mode, \firmwarecloud{} will:
+    \begin{itemize}
+        \item initialize critical peripherals;
+        \item initialize the software and hardware modules required for its
+              operations according to the active firmware image;
+        \item perform its independent self-test sequence (only applicable for
+              the firmware images that include the self-test sequence);
+        \item confirm to \firmwaresensor{} once it is ready to send data to the
+              cloud; and
+        \item perform the shared self-test sequence (only applicable for the
+              firmware images that include the self-test sequence).
+    \end{itemize}
+    Entered synchronously when \system{} is powered on. Applicable for all
+    firmware images.
 
-    \item \modeprocess{} $\rightarrow$ \modesleep{}:
-          if the number of buffered tracks waiting to be transmitted is less
-          than
-          \placeholder{NUM\_RECORDED\_TRACKS\_BEFORE\_SEND}.
+    % TODO: specify that firmwarecloud will be listening in all its modes, but
+    % only this on energy-saving state
+    \item[\modelisten]
+    In this mode, \firmwarecloud{} will wait on an energy-saving state for a
+    command from \firmwaresensor{}. Entered synchronously:
+    \begin{itemize}
+        \item from \modeinit after initialization is successfully completed.
+    \end{itemize}
+    Entered asynchronously when there is no more data to be sent to the cloud or
+    commands to be parsed. Not applicable for verification images.
 
-    \item \modeprocess{} $\rightarrow$ \modesend{}:
-          otherwise.
+    % TODO: command buffer?
+    \item[\modeparse]
+    In this mode, \firmwarecloud{} will parse the command received from
+    \firmwaresensor{} and respond if the command requires a response. If the
+    command is a payload command, \firmwarecloud{} will add the payload chunk to
+    the payload ring buffer. Entered asynchronously when a command is received
+    from \firmwaresensor{}. Not applicable for verification images.
 
-    \item \modesend{} $\rightarrow$ \modehandleloss{}:
-          if transmission of the ecoacoustic data payload fails.
+    % TODO: define payload command, payload chunk, payload ring buffer
+    \item[\modesend]
+    In this mode, \firmwarecloud{} will transmit the payloads in the payload
+    ring buffer to the cloud. Entered synchronously:
+    \begin{itemize}
+        \item from \modeparse after the payload ring buffer has a complete
+              payload; or
+        \item from \modehandlelooss after the payload whose transmission failed
+              is successfully transmitted.
+    \end{itemize}
+    Not applicable for verification images.
 
-    \item \modesend{} $\rightarrow$ \modesleep{}:
-          after successful transmission of the ecoacoustic data payload.
+    \item[\modehandleloss]
+    In this mode, \firmwarecloud{} will handle a payload transmission failure.
+    Entered synchronously from \modesend when a payload transmission fails. Not
+    applicable for verification images.
 
-    \item \modehandleloss{} $\rightarrow$ \modesleep{}:
-          after successful transmission of a retried ecoacoustic data
-          payload.
+\end{description}
 
-    \item \modesleep{} $\rightarrow$ \modesample{}:
-          after \placeholder{SLEEP\_TIME} seconds.
+\subsubsection{Summary of Mode Transitions for \firmwaresensor{}}
+
+\begin{summarybox}
+\begin{itemize}
+    % TODO
 \end{itemize}
 \end{summarybox}
 
