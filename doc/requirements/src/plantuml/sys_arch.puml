@@ -1,0 +1,17 @@
+@startuml
+skinparam defaultFontSize 36
+
+node EASNFW_SENSOR
+node EASNFW_CLOUD
+cloud Cloud
+
+EASNFW_SENSOR <--> [Audio sensor]              : I2S
+EASNFW_SENSOR <--> [Environmental sensors]     : I2C
+EASNFW_SENSOR <--> [Host PC]                   : Serial-USB
+EASNFW_SENSOR <--> [Mass storage]              : SPI
+EASNFW_SENSOR <--> EASNFW_CLOUD                : SPI
+EASNFW_CLOUD  <--> Cloud                       : HTTP over LTE-M
+EASNFW_CLOUD   --> [Host PC]                   : Serial-USB
+EASNFW_CLOUD  <--> [External storage]          : SPI
+
+@enduml
