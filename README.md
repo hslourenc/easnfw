@@ -45,6 +45,3 @@ environment variable to the path of the PlantUML jar and run:
 ```sh
 make -C doc/requirements plantuml
 ```
-
-Note: the `out/` directory is gitignored, and the LaTeX build may need to be
-run twice for the table of contents to be correct.
