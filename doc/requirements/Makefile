@@ -1,7 +1,7 @@
 PUML_DIR = ./src/plantuml
 
 lualatex: ./src/requirements.tex plantuml
-	cd ./src && lualatex --output-directory ../out ./requirements_clean.tex
+	cd ./src && lualatex --output-directory ../out ./requirements.tex
 
 plantuml: $(wildcard $(PUML_DIR)/*.puml)
 	@if [ -z "$(PLANTUML_JAR)" ]; then \
