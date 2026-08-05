@@ -1,224 +1,22 @@
 \documentclass[11pt,a4paper]{article}
 
-% -----------------------------------------------------------------------------
-% Language and typography
-% -----------------------------------------------------------------------------
-\usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
 \usepackage[english]{babel}
-\usepackage{lmodern}
-\usepackage{microtype}
-
-% -----------------------------------------------------------------------------
-% Page layout
-% -----------------------------------------------------------------------------
-\usepackage[
-    top=2.5cm,
-    bottom=2.5cm,
-    left=2.7cm,
-    right=2.7cm,
-    headheight=15pt
-]{geometry}
-
-\setlength{\parindent}{1.25cm}
-\setlength{\parskip}{0.25em}
-\setlength{\emergencystretch}{2em}
-
-% -----------------------------------------------------------------------------
-% Graphics, colors and boxes
-% -----------------------------------------------------------------------------
-\usepackage{graphicx}
-\usepackage{xcolor}
-\usepackage[most]{tcolorbox}
-\usepackage{caption}
-
-\definecolor{documentblue}{HTML}{17365D}
-\definecolor{lightblue}{HTML}{F3F7FB}
-\definecolor{mediumgray}{HTML}{666666}
-
-\captionsetup{
-    font=small,
-    labelfont=bf,
-    justification=centering
-}
-
-% -----------------------------------------------------------------------------
-% Lists and section headings
-% -----------------------------------------------------------------------------
-\usepackage{enumitem}
-\usepackage{titlesec}
-
-\setlist[itemize]{
-    leftmargin=1.8em,
-    itemsep=0.25em,
-    topsep=0.4em
-}
-
-\setlist[enumerate]{
-    leftmargin=1.8em,
-    itemsep=0.25em,
-    topsep=0.4em
-}
-
-\titleformat{\section}
-    {\Large\bfseries\color{documentblue}}
-    {\thesection}
-    {0.75em}
-    {}
-
-\titleformat{\subsection}
-    {\large\bfseries\color{documentblue}}
-    {\thesubsection}
-    {0.75em}
-    {}
-
-\titleformat{\subsubsection}
-    {\normalsize\bfseries}
-    {\thesubsubsection}
-    {0.75em}
-    {}
-
-\titlespacing*{\section}{0pt}{2.2em}{0.8em}
-\titlespacing*{\subsection}{0pt}{1.7em}{0.6em}
-\titlespacing*{\subsubsection}{0pt}{1.3em}{0.4em}
-
-% -----------------------------------------------------------------------------
-% Headers and footers
-% -----------------------------------------------------------------------------
-\usepackage{fancyhdr}
-
-\pagestyle{fancy}
-\fancyhf{}
-
-\fancyhead[L]{\small EASN-FW}
-\fancyhead[R]{\small Software Requirements Specification}
-\fancyfoot[C]{\small \thepage}
-
-\renewcommand{\headrulewidth}{0.4pt}
-\renewcommand{\footrulewidth}{0pt}
-
-% -----------------------------------------------------------------------------
-% Hyperlinks
-% -----------------------------------------------------------------------------
-\usepackage[
-    colorlinks=true,
-    linkcolor=documentblue,
-    urlcolor=documentblue,
-    citecolor=documentblue,
-    pdftitle={Software Requirements Specification for Ecoacoustic Sensing Node},
-    pdfauthor={Henrique Sander Lourenço, João Colombari}
-]{hyperref}
-
-% -----------------------------------------------------------------------------
-% Tables
-% -----------------------------------------------------------------------------
+\usepackage[margin=2.5cm]{geometry}
 \usepackage{array}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+\usepackage{indentfirst}
 
-% -----------------------------------------------------------------------------
-% Custom commands
-% -----------------------------------------------------------------------------
-\newcommand{\firmware}{\textit{EASN-FW}}
-\newcommand{\system}{\textit{EASN}}
+\title{EASNFW Requirements Specification v2}
+\author{}
+\date{}
 
-\newcommand{\modeinit}{\texttt{MODE\_INIT}}
-\newcommand{\modesample}{\texttt{MODE\_SAMPLE}}
-\newcommand{\modeprocess}{\texttt{MODE\_PROCESS}}
-\newcommand{\modesend}{\texttt{MODE\_SEND}}
-\newcommand{\modehandleloss}{\texttt{MODE\_HANDLE\_LOSS}}
-\newcommand{\modesleep}{\texttt{MODE\_SLEEP}}
-
-\newcommand{\retrysend}{\texttt{RETRY\_SEND}}
-\newcommand{\retryconn}{\texttt{RETRY\_CONN}}
-
-\newcommand{\placeholder}[1]{%
-    \texttt{\textless #1\textgreater}%
-}
-
-% Requirement box
-\newtcolorbox{requirement}[1]{
-    enhanced,
-    breakable,
-    colback=lightblue,
-    colframe=documentblue!70,
-    boxrule=0.6pt,
-    arc=2pt,
-    left=8pt,
-    right=8pt,
-    top=7pt,
-    bottom=7pt,
-    before skip=9pt,
-    after skip=9pt,
-    title={Requirement \##1},
-    fonttitle=\bfseries,
-    coltitle=white,
-    colbacktitle=documentblue
-}
-
-% Informational box
-\newtcolorbox{summarybox}{
-    enhanced,
-    breakable,
-    colback=gray!4,
-    colframe=gray!50,
-    boxrule=0.5pt,
-    arc=2pt,
-    left=9pt,
-    right=9pt,
-    top=7pt,
-    bottom=7pt,
-    before skip=8pt,
-    after skip=8pt
-}
-
-% -----------------------------------------------------------------------------
-% Document
-% -----------------------------------------------------------------------------
 \begin{document}
 
-% -----------------------------------------------------------------------------
-% Title page
-% -----------------------------------------------------------------------------
-\begin{titlepage}
-    \thispagestyle{empty}
-    \centering
-
-    \vspace*{2.5cm}
-
-    {\color{documentblue}\rule{\textwidth}{1.2pt}}
-
-    \vspace{1.2cm}
-
-    {\Huge\bfseries
-    Software Requirements Specification
-    \par}
-
-    \vspace{0.4cm}
-
-    {\LARGE
-    Ecoacoustic Sensing Node
-    \par}
-
-    \vspace{0.8cm}
-
-    {\Large\color{mediumgray}
-    Revision \#1
-    \par}
-
-    \vspace{1.2cm}
-
-    {\color{documentblue}\rule{\textwidth}{1.2pt}}
-
-    \vfill
-
-    \begin{tabular}{@{}ll@{}}
-        \textbf{Software product:} & EASN-FW \\[0.4em]
-        \textbf{System:}           & Ecoacoustic Sensing Node \\[0.4em]
-        \textbf{Authors:}          & Henrique Lourenço, João Colombari \\[0.4em]
-        \textbf{Date:}             & July 2026
-    \end{tabular}
-
-    \vfill
-\end{titlepage}
+\maketitle
 
 \tableofcontents
 \clearpage
@@ -229,26 +27,26 @@
 
 \subsection{Purpose}
 
-The purpose of the software whose requirements are specified in this document is
-to control the hardware of an ecoacoustic sensing node.
+The purpose of the software whose requirements are specified in this document
+is to control the hardware of an ecoacoustic sensing node.
 
 \subsection{Scope}
 
-This document specifies the requirements for the software product designated as
-\firmware{}, from \textbf{e}co\textbf{a}coustic \textbf{s}ensing \textbf{n}ode
+This document specifies the requirements for the software product designated
+as EASNFW, from \textbf{e}co\textbf{a}coustic \textbf{s}ensing \textbf{n}ode
 \textbf{f}irm\textbf{w}are.
 
-Within this document, \firmware{} may also be referred to as \textit{the
-firmware}. The ecoacoustic sensing node as a whole, comprising all software and
-hardware components of the device, is designated as \system{} and may also be
-referred to as \textit{the system} or \textit{the sensing node}.
+Within this document, EASNFW may also be referred to as \textit{the firmware}.
+The ecoacoustic sensing node as a whole, comprising all software and hardware
+components of the device, is designated as EASN and may also be referred to as
+\textit{the system} or \textit{the sensing node}.
 
-The purpose of \firmware{} is to control the hardware of \system{} in order to:
+The purpose of EASNFW is to control the hardware of EASN in order to:
 
 \begin{itemize}
     \item acquire ecoacoustic data through the system sensors;
     \item process the acquired data; and
-    \item transmit the resulting data to a cloud platform.
+    \item transmit the acquired and processed data to a cloud platform.
 \end{itemize}
 
 The cloud platform may be referred to as \textit{the cloud platform} or simply
@@ -260,60 +58,74 @@ studies.
 \subsubsection{Product Perspective}
 
 The system is intended to integrate a distributed ecoacoustic data acquisition
-infrastructure. This infrastructure is composed of a set of sensing nodes and
-a cloud platform.
+infrastructure. This infrastructure is composed of a set of sensing nodes and a
+cloud platform.
 
 The cloud platform stores the data acquired by the sensing nodes and provides
 support for visualizing and analyzing the collected data.
 
-The system hardware is based on the boards nRF5340 Audio DK and nRF9151 DK from
-Nordic Semiconductor.
+The system hardware is based on the boards nRF5340 Audio DK and nRF9151 SMA DK
+from Nordic Semiconductor.
 
-\firmware{} will run on and control the nRF5340 System-on-Chip (SoC) from the
-nRF5340 Audio DK and the nRF9151 System-in-Package (SiP) from the nRF9151 DK.
-The nRF5340 SoC will be used for the data acquisition and processing, and the
-nRF9151 SiP will be used for the interface with the cloud.
+EASNFW will run on and control the nRF5340 System-on-Chip (SoC) from the
+nRF5340 Audio DK and the nRF9151 System-in-Package (SiP) from the nRF9151 SMA
+DK. EASNFW is hence subdivided into two different components: one that will run
+on nRF5340 and be mainly responsible for interfacing with the system sensors,
+and processing, storing and retrieving the data acquired through them, and is
+therefore designated as EASNFW-SENSOR; and another one that will run on nRF9151
+and be mainly responsible for interfacing with the cloud, and is therefore
+designated as EASNFW-CLOUD. EASNFW-SENSOR and EASNFW-CLOUD will communicate
+over SPI, with EASNFW-SENSOR as the controller and EASNFW-CLOUD as the
+peripheral.
 
-The system sensors to be controlled by \firmware{} are described in
-Table \ref{table:sensors}.
-
-% TODO: check sensors to be used and connections
-\begin{table}[h!]
-\caption{System sensors description}
-\centering
-\begin{tabular}{ m{4cm} m{3.5cm} m{6cm} }
-    Sensor                                                   & Part Number                  & Connection \\
-    \hline
-    Audio (microphone)                                       & VM3011 (Vesper Technologies) & Connected to nRF5340 through I2C with address 0x60 \\
-    Environmental (temperature, humidity, pressure and VOCs) & BME688 (Bosch)               & Connected to nRF5340 through SPI/I2C...
-\end{tabular}
-\label{table:sensors}
-\end{table}
-
-\system{} will communicate with the cloud using HTTP over LTE-M through the
+EASNFW-CLOUD will communicate with the cloud using HTTP over LTE-M through the
 built-in LTE-M modem of nRF9151. Communication is unidirectional: data flows
 from the sensing node to the cloud, but not from the cloud to the sensing node.
 
-The system itself does not provide a direct user interface.
+\paragraph{User interfaces}
+
+EASNFW-SENSOR will provide a command line interface (CLI) for verifying
+specific features. Such interface will only be enabled when working with the
+``CLI verification image'' (see Section~\ref{sec:firmware-images}).
+
+Both EASNFW-SENSOR and EASNFW-CLOUD will log their own activities through the
+USB interface of their respective boards when logging is enabled.
 
 \subsubsection{Product Functions}
 
-The main functions performed by the firmware are:
+The main functions that will be performed by EASNFW are described in
+Table~\ref{table:easnfw-functions}, alongside the firmware component responsible
+for each function.
 
-\begin{itemize}
-    \item acquisition of audio data;
-    \item processing of audio data;
-    \item acquisition of environmental data: temperature, humidity, pressure and
-          volatile organic compounds (VOCs).
-          and pressure; and
-    \item transmission of environmental data and processed audio data to the
-          cloud.
-\end{itemize}
+\begin{table}[h!]
+\centering
+\begin{tabular}{ m{6cm} m{4cm} }
+    Function                                                                   & Responsible firmware component \\
+    \hline
+    Acquire audio data                                                         & EASNFW-SENSOR                 \\
+    Process audio data                                                         & EASNFW-SENSOR                 \\
+    Acquire environmental data                                                 & EASNFW-SENSOR                 \\
+    Transmit acquired environmental data and processed audio data to the cloud & EASNFW-CLOUD
+\end{tabular}
+\caption{EASNFW functions description}\label{table:easnfw-functions}
+\end{table}
+
+\subsubsection{System Architecture}
+
+The diagram in Figure \ref{fig:sysarchoverview} provides an overview of the
+system architecture, showing the main blocks that compose and communicate with
+it, and how they interface with EASNFW.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=1\textwidth]{sys_arch}
+    \caption{System architecture overview}\label{fig:sysarchoverview}
+\end{figure}
 
 \subsubsection{User Characteristics}
 
-Users of the system and firmware are expected to be familiar with general
-concepts related to:
+Users of EASN and EASNFW are expected to be familiar with general concepts
+related to:
 
 \begin{itemize}
     \item embedded systems;
@@ -324,508 +136,292 @@ concepts related to:
 
 \subsubsection{Limitations}
 
-The firmware functions and their implementations are constrained by:
+EASNFW functions and their implementations are constrained by:
 
 \begin{itemize}
-    \item the computational, memory, communication, and energy resources of
-          the target hardware; and
+    \item the computational, memory, communication, and energy resources of the
+          target hardware; and
     \item the interfaces provided by the cloud platform.
 \end{itemize}
 
 \subsection{Definitions}
-\label{section:definition}
 
-\begin{description}[
-    style=nextline,
-    leftmargin=0pt,
-    labelindent=0pt,
-    font=\normalfont\bfseries
-]
+\textbf{Audio track}
 
-    \item[Audio track]
-    An ordered collection of audio samples captured sequentially over a
-    continuous period of
-    \placeholder{TRACK\_LENGTH} seconds.
+An ordered collection of audio samples captured sequentially over a continuous
+period of PARAM\_TRACK\_LEN seconds, which will be configurable via Kconfig.
 
-    \item[Audio processing algorithm]
-    The algorithm used to process the recorded audio tracks.
+\textbf{Audio processing algorithm}
 
-    \item[Processed audio track]
-    The output, or collection of outputs, produced by the audio processing
-    algorithm for a given audio track.
+The algorithm used to process the recorded audio tracks.
 
-    \item[Atmospheric sample set]
-    A set of atmospheric variables sampled within an interval shorter than
-    10 seconds. The set consists of temperature, humidity, and pressure.
+\textbf{Processed audio track}
 
-    \item[Ecoacoustic data payload]
-    A payload periodically transmitted to the cloud. It consists of
-    \placeholder{NUM\_RECORDED\_TRACKS\_BEFORE\_SEND} processed audio tracks.
+The output, or collection of outputs, produced by the audio processing
+algorithm for a given audio track.
 
-    Each processed audio track is associated with:
+\textbf{Environmental sample set}
 
-    \begin{itemize}
-        \item an atmospheric sample set; and
-        \item a timestamp indicating when the corresponding audio track was
-              recorded.
-    \end{itemize}
+A set of environmental variables sampled within a short interval. The set
+consists of temperature, humidity, pressure and volatile organic compounds
+(VOCs).
 
-    \item[Power-on payload]
-    A payload transmitted to the cloud during system initialization. It
-    consists of:
+\textbf{Self-test sequence}
 
-    \begin{itemize}
-        \item the firmware revision or revisions; and
-        \item the reason why the device was last powered off.
-    \end{itemize}
+Sequence of tests executed by EASNFW to verify the correct working of
+individual software modules, as well as the integration between them. It is
+broken down into the independent self-test sequence, which is a firmware
+component-specific sequence, meaning that each of EASNFW-SENSOR and
+EASNFW-CLOUD has its own independent self-test sequence; and the shared
+self-test sequence, which is carried out by EASNFW-SENSOR and EASNFW-CLOUD
+together.
 
-    \item[Timestamp format]
-    Timestamps included in payloads shall be expressed according to the
-    ISO~8601 format.
+\textbf{Verification images}
 
-\end{description}
+Set of images intended to be used solely for verification, comprising the
+regression verification image and the CLI verification image (see
+Section~\ref{sec:firmware-images}).
+
+\subsection{Firmware Images}
+\label{sec:firmware-images}
+
+\textbf{Production image}
+
+Image of the firmware to be used for deployment. Contains all the business
+logic and logging is disabled. Built when the BUILD\_PROD flag is set.
+
+\textbf{Debugging image}
+
+Image of the firmware to be used for debugging, it is the same as the
+production image but with logging enabled. Built when the BUILD\_DEBUG flag is
+set.
+
+\textbf{Development image}
+
+Image of the firmware to be used for development, it is the same as the
+debugging image, but with the self-test sequence included. Built when the
+BUILD\_DEVELOP flag is set.
+
+\textbf{Regression verification image}
+
+Image of the firmware that contains only the self-test sequence with logging
+enabled. Built when the BUILD\_REGR flag is set.
+
+\textbf{CLI verification image}
+
+Image of the firmware to be used for verifying specific product functions, such
+as the audio acquisition and processing, through a command-line interface (CLI)
+running on EASNFW-SENSOR. Built when the BUILD\_CLI flag is set. Only valid for
+EASNFW-SENSOR.
+
+\subsection{Payloads}
+
+\textbf{Ecoacoustic data payload}
+
+A payload transmitted periodically to the cloud that consists of a processed
+audio track paired with an environmental sample set and a timestamp indicating
+when the corresponding audio track was recorded.
+
+\textbf{Power-on payload}
+
+A payload transmitted to the cloud during EASNFW initialization that consists
+of the respective revisions of EASNFW-SENSOR and EASNFW-CLOUD and the reason
+why the device was last powered off.
 
 % =============================================================================
 \section{Requirements}
 % =============================================================================
 
-\subsection{Operating Modes}
-\label{section:modes}
+\subsection{Initialization}
 
-\subsubsection{Mode List}
+\subsubsection{REQ-001}
 
-The firmware shall operate by transitioning among the following modes:
+When the system is powered on, the firmware shall execute the initialization
+sequence, which comprises: (a) initializing critical peripherals\footnote{(a)
+is already taken care of by Zephyr.}; (b) running the self-test
+sequences\footnote{(b) is only valid for the firmware images that include the
+self-test sequences.}; (c) establishing an Internet connection; (d) transmitting
+the power-on payload to the cloud; and (e) transmitting to the cloud any
+pending ecoacoustic data payloads from previous boot cycles.
 
-\begin{description}[
-    style=nextline,
-    leftmargin=0pt,
-    labelindent=0pt,
-    font=\normalfont\bfseries
-]
+\subsection{Data Acquisition}
 
-    \item[\modeinit]
-    Initial mode entered after the system is powered on. In this mode, the
-    firmware initializes the required hardware and software components.
+\subsubsection{REQ-002}
 
-    \item[\modesample]
-    Mode in which the signals to be processed and transmitted to the cloud
-    are sampled.
+After the initialization sequence is successfully completed, the firmware shall
+periodically sample the audio into PARAM\_TRACK\_LEN-second audio tracks with a
+PARAM\_INTER\_TRACK\_INTERVAL-second interval between the sampling of two
+consecutive audio tracks.
 
-    \item[\modeprocess]
-    Mode in which recorded audio tracks are processed.
-
-    \item[\modesend]
-    Mode in which data payloads are transmitted to the cloud.
-
-    \item[\modehandleloss]
-    Mode in which failed payload transmissions or Internet connections are
-    retried using exponential backoff.
-
-    \item[\modesleep]
-    Energy-saving mode in which the system waits until the beginning of the
-    next recording cycle.
-
-\end{description}
-
-\subsubsection{Summary of Mode Transitions}
-
-\begin{summarybox}
-\begin{itemize}
-    \item \modeinit{} $\rightarrow$ \modesample{}:
-          after successful transmission of the power-on payload.
-
-    \item \modeinit{} $\rightarrow$ \modehandleloss{}:
-          if transmission of the power-on payload fails.
-
-    \item \modehandleloss{} $\rightarrow$ \modesample{}:
-          after successful transmission of a retried power-on payload.
-
-    \item \modesample{} $\rightarrow$ \modeprocess{}:
-          after successful acquisition of an audio track, its corresponding
-          atmospheric sample set, and its timestamp.
-
-    \item \modeprocess{} $\rightarrow$ \modesleep{}:
-          if the number of buffered tracks waiting to be transmitted is less
-          than
-          \placeholder{NUM\_RECORDED\_TRACKS\_BEFORE\_SEND}.
-
-    \item \modeprocess{} $\rightarrow$ \modesend{}:
-          otherwise.
-
-    \item \modesend{} $\rightarrow$ \modehandleloss{}:
-          if transmission of the ecoacoustic data payload fails.
-
-    \item \modesend{} $\rightarrow$ \modesleep{}:
-          after successful transmission of the ecoacoustic data payload.
-
-    \item \modehandleloss{} $\rightarrow$ \modesleep{}:
-          after successful transmission of a retried ecoacoustic data
-          payload.
-
-    \item \modesleep{} $\rightarrow$ \modesample{}:
-          after \placeholder{SLEEP\_TIME} seconds.
-\end{itemize}
-\end{summarybox}
-
-The requirements associated with each mode, as well as the conditions under
-which each transition occurs, are described in the following sections.
-
-\begin{figure}[htbp]
-    \centering
-
-    \IfFileExists{mode_transitions_diagram.png}{
-        \includegraphics[
-            width=\linewidth,
-            height=0.72\textheight,
-            keepaspectratio
-        ]{mode_transitions_diagram.png}
-    }{
-        \fbox{
-            \parbox[c][5cm][c]{0.9\linewidth}{
-                \centering
-                Mode-transition diagram not found.\\[0.5em]
-                Expected file:
-                \texttt{mode\_transitions\_white\_background\_sequence.png}
-            }
-        }
-    }
-
-    \caption{Firmware operating-mode transitions.}
-    \label{fig:mode-transitions}
-\end{figure}
-
-\subsubsection{\modeinit{} Mode}
-
-\begin{requirement}{001}
-When the system is powered on, the firmware shall enter \modeinit{}.
-
-In this mode, the firmware shall:
+Parameters for audio sampling:
 
 \begin{itemize}
-    \item initialize all hardware components required for system operation;
-    \item initialize all software components required for system operation;
-          and
-    \item establish an Internet connection.
+    \item Number of channels: 1
+    \item Sample rate: PARAM\_AUDIO\_SAMPLE\_RATE kHz
+    \item Bandwidth: PARAM\_AUDIO\_SAMPLE\_BW\_LO Hz -
+          PARAM\_AUDIO\_SAMPLE\_BW\_HI kHz
+    \item Sample width: PARAM\_AUDIO\_SAMPLE\_WIDTH bits
 \end{itemize}
-\end{requirement}
 
-\begin{requirement}{002}
-While operating in \modeinit{}, after the required hardware and software
-components have been initialized and an Internet connection has been
-established, the firmware shall transmit the power-on payload to the cloud.
+\subsubsection{REQ-003}
 
-The payload definitions are provided in
-Section~\ref{section:definition}.
-\end{requirement}
+The firmware shall detect the loss of any audio samples and restart the audio
+track sampling in such an event.
 
-\begin{requirement}{003}
-While operating in \modeinit{}, if transmission of the power-on payload fails,
-the firmware shall:
+\subsubsection{REQ-004}
+
+Before the beginning of the sampling of each audio track, the firmware shall
+capture a timestamp, including the date and time with at least a 1-second
+resolution, and sample the environmental data.
+
+\subsection{Data Processing}
+
+\subsubsection{REQ-005}
+
+The firmware shall process the audio tracks according to the audio processing
+algorithm.
+
+\subsection{Cloud Communication}
+
+\subsubsection{REQ-006}
+
+After an audio track is processed, the firmware shall send the processed audio
+track, alongside the timestamp and environmental data that were captured before
+the beginning of the sampling of that audio track, to the cloud.
+
+\subsubsection{REQ-007}
+
+When the transmission of the power-on payload to the cloud fails, the firmware
+shall retry transmitting it up to PARAM\_NUM\_RETRY\_TX\_CLOUD times with an
+exponential backoff model defined by $t[s]=2^c$, where $c$ is the number of
+times that the transmission has been retried.
+
+\subsubsection{REQ-008}
+
+When the transmission of an ecoacoustic data payload to the cloud fails, the
+firmware shall retry transmitting it until the free space of the mass storage
+is insufficient to store the data relative to another audio track. The firmware
+shall use an exponential backoff model defined by $t[s]=2^c$, where $c$ is the
+number of times that the transmission has been retried.
+
+\subsubsection{REQ-009}
+
+The firmware shall be designed so that communication parameters can be adapted
+to the regulatory requirements of different geographical regions.
+
+\subsection{Data Persistence}
+
+\subsubsection{REQ-010}
+
+The firmware shall persist ecoacoustic data payloads that have not been sent to
+the cloud across boot cycles.
+
+\subsubsection{REQ-011}
+
+The firmware shall persist details of fatal failures across boot cycles.
+
+\subsection{Power Management}
+
+\subsubsection{REQ-012}
+
+When the firmware is waiting for triggers to take action, the firmware shall
+enter an energy-saving state.
+
+\subsection{Configuration}
+
+\subsubsection{REQ-013}
+
+The following parameters shall be configurable at compile-time via Kconfig:
 
 \begin{itemize}
-    \item store the transmission failure reason; and
-    \item transition to \modehandleloss{}.
-\end{itemize}
-\end{requirement}
-
-\begin{requirement}{004}
-While operating in \modeinit{}, after the power-on payload has been
-successfully transmitted to the cloud, the firmware shall transition to
-\modesample{}.
-\end{requirement}
-
-\subsubsection{\modesample{} Mode}
-
-\begin{requirement}{005}
-While operating in \modesample{}, the firmware shall sample the audio signal
-and construct an audio track with a duration of
-\placeholder{TRACK\_LENGTH} seconds.
-
-The firmware shall use:
-
-\begin{itemize}
-    \item I2S to communicate with the audio sensor; and
-    \item EasyDMA to retrieve the audio samples.
+    \item PARAM\_TRACK\_LEN (seconds)
+    \item PARAM\_INTER\_TRACK\_INTERVAL (seconds)
+    \item PARAM\_NUM\_RETRY\_TX\_CLOUD
+    \item PARAM\_AUDIO\_SAMPLE\_RATE (kHz)
+    \item PARAM\_AUDIO\_SAMPLE\_BW\_LO (Hz)
+    \item PARAM\_AUDIO\_SAMPLE\_BW\_HI (kHz)
+    \item PARAM\_AUDIO\_SAMPLE\_WIDTH (bits)
 \end{itemize}
 
-The following sampling parameters shall be used:
+\subsection{Observability}
 
-\begin{itemize}
-    \item \textbf{Number of channels:}
-          \placeholder{NUM\_CHANNELS} (TBD);
+\subsubsection{REQ-014}
 
-    \item \textbf{Sample rate:}
-          \placeholder{AUDIO\_SAMPLE\_RATE} (TBD);
+The firmware shall log information relevant to verifying correct system
+operation and to identifying and diagnosing failures, in a way that the logs can
+be monitored in real-time from a host personal computer (PC) through USB.
 
-    \item \textbf{Bandwidth:}
-          configurable at compile time through Kconfig; and
+\subsection{Verification}
 
-    \item \textbf{Sample width:}
-          24 bits.
-\end{itemize}
-\end{requirement}
+\subsubsection{REQ-015}
 
-\begin{requirement}{006}
-The firmware shall detect audio-buffer overrun events.
+The CLI image of the firmware shall provide a command to sample an audio track
+with the specified length, passed as a parameter, and return the captured
+samples.
 
-A buffer overrun occurs when the audio sensor advances beyond the firmware's
-ability to retrieve the buffered samples.
+\subsubsection{REQ-016}
 
-If a buffer overrun occurs, the firmware shall:
+The CLI image of the firmware shall provide a command to sample an audio track
+with the specified length, passed as a parameter, process it according to the
+audio processing algorithm, and return both the captured samples and the
+processed audio track.
 
-\begin{itemize}
-    \item reset the system;
-    \item discard any unsent tracks; and
-    \item re-enter \modeinit{} as a consequence of the reset.
-\end{itemize}
-\end{requirement}
+\subsubsection{REQ-017}
 
-\begin{requirement}{007}
-If audio acquisition fails while the firmware is operating in
-\modesample{}, including failures caused by unrecoverable audio-capture
-errors, the firmware shall:
+The self-test sequence shall verify that audio data can be sampled from the
+audio sensor.
 
-\begin{itemize}
-    \item reset the system;
-    \item discard any unsent tracks; and
-    \item re-enter \modeinit{} as a consequence of the reset.
-\end{itemize}
-\end{requirement}
+\subsubsection{REQ-018}
 
-\begin{requirement}{008}
-While operating in \modesample{}, after an audio track has been recorded,
-the firmware shall:
+The self-test sequence shall verify that environmental data can be sampled from
+the environmental sensor.
 
-\begin{itemize}
-    \item perform a one-shot sampling of temperature, humidity, and pressure,
-          thereby forming an atmospheric sample set;
-    \item acquire a timestamp with a resolution of one second; and
-    \item transition to \modeprocess{}.
-\end{itemize}
-\end{requirement}
+\subsubsection{REQ-019}
 
-\subsubsection{\modeprocess{} Mode}
+The self-test sequence shall verify that data can be written to and read from
+the mass storage.
 
-\begin{requirement}{009}
-While operating in \modeprocess{}, the firmware shall process the most
-recently recorded audio track according to the audio processing algorithm.
+\subsubsection{REQ-020}
 
-After processing, the firmware shall:
+The self-test sequence shall verify that data can be written to and read from
+the external storage.
 
-\begin{itemize}
-    \item transition to \modesleep{} if the number of buffered tracks waiting
-          to be transmitted is less than
-          \placeholder{NUM\_RECORDED\_TRACKS\_BEFORE\_SEND}; or
+\subsubsection{REQ-021}
 
-    \item transition to \modesend{} otherwise.
-\end{itemize}
-\end{requirement}
+The self-test sequence shall verify the communication between EASNFW-SENSOR and
+EASNFW-CLOUD.
 
-\subsubsection{\modesleep{} Mode}
+\subsubsection{REQ-022}
 
-\begin{requirement}{010}
-While operating in \modesleep{}, the firmware shall enter an energy-saving
-state for a period of \placeholder{SLEEP\_TIME} seconds.
+The self-test sequence shall verify that data can be transmitted to the cloud.
 
-After this period, the firmware shall transition to \modesample{}.
+\subsubsection{REQ-023}
 
-The start time of the next recording shall be determined according to the
-\placeholder{SLEEP\_TIME} value configured for this mode.
-\end{requirement}
+The self-test sequence shall verify that the reason for the last power-off can
+be retrieved.
 
-\subsubsection{\modesend{} Mode}
+\subsubsection{REQ-024}
 
-\begin{requirement}{011}
-While operating in \modesend{}, the firmware shall transmit the ecoacoustic
-data payload to the cloud using HTTP over LTE-M.
-
-The choice between the HTTP \texttt{PUT} and \texttt{POST} methods is
-intentionally left unspecified and shall be determined when further
-information about the cloud platform becomes available.
-\end{requirement}
-
-\begin{requirement}{012}
-While operating in \modesend{}, if transmission of the ecoacoustic data
-payload fails, the firmware shall:
-
-\begin{itemize}
-    \item store the transmission failure reason; and
-    \item transition to \modehandleloss{}.
-\end{itemize}
-\end{requirement}
-
-\begin{requirement}{013}
-While operating in \modesend{}, after the ecoacoustic data payload has been
-successfully transmitted to the cloud, the firmware shall transition to
-\modesleep{}.
-\end{requirement}
-
-\subsubsection{\modehandleloss{} Mode}
-
-\begin{requirement}{014}
-While operating in \modehandleloss{}, the firmware shall execute one of two
-recovery procedures depending on the Internet connection state.
-
-\paragraph{\retrysend}
-
-If the system is connected to the Internet, the firmware shall retry the
-transmission of the payload that caused the transition to
-\modehandleloss{}.
-
-The retries shall:
-
-\begin{itemize}
-    \item use exponential backoff; and
-    \item be performed up to
-          \placeholder{NUM\_TIMES\_RETRY\_SEND} times.
-\end{itemize}
-
-The following outcomes shall apply:
-
-\begin{itemize}
-    \item If a transmission attempt succeeds, the firmware shall transition
-          to the mode associated with the successfully transmitted payload.
-
-    \item If the system loses its Internet connection during the transmission
-          attempts, the firmware shall proceed to \retryconn{}.
-
-    \item The number of failed transmission and connection attempts shall not
-          accumulate across \retrysend{} and \retryconn{}.
-
-    \item If all transmission attempts fail, the firmware shall reset the
-          system, discard unsent tracks, and re-enter \modeinit{} as a
-          consequence of the reset.
-\end{itemize}
-
-\paragraph{\retryconn}
-
-If the system is not connected to the Internet, the firmware shall attempt to
-re-establish the Internet connection.
-
-The connection attempts shall:
-
-\begin{itemize}
-    \item use exponential backoff; and
-    \item be performed up to
-          \placeholder{NUM\_TIMES\_TRY\_RECONNECT} times.
-\end{itemize}
-
-The following outcomes shall apply:
-
-\begin{itemize}
-    \item If a connection attempt succeeds, the firmware shall proceed to
-          \retrysend{}.
-
-    \item The number of failed transmission and connection attempts shall not
-          accumulate across \retrysend{} and \retryconn{}.
-
-    \item If all connection attempts fail, the firmware shall reset the
-          system, discard unsent tracks, and re-enter \modeinit{} as a
-          consequence of the reset.
-\end{itemize}
-\end{requirement}
-
-\begin{requirement}{015}
-While operating in \modehandleloss{}, if the time spent in this mode exceeds
-\placeholder{MAX\_TIME\_SPENT\_HANDLE\_LOSS} seconds, the firmware shall:
-
-\begin{itemize}
-    \item reset the system;
-    \item discard any unsent tracks; and
-    \item re-enter \modeinit{} as a consequence of the reset.
-\end{itemize}
-
-This requirement prevents the interval between consecutive audio recordings
-from becoming excessively long.
-\end{requirement}
-
-\subsection{Usability Requirements}
-
-\begin{requirement}{016}
-In all operating modes, the firmware shall log information relevant to:
-
-\begin{itemize}
-    \item verifying correct system operation; and
-    \item identifying and diagnosing failures.
-\end{itemize}
-
-The logs shall be available for real-time monitoring through the system's USB
-interface.
-\end{requirement}
-
-\subsection{Design Constraints}
-
-The firmware shall be designed so that relevant LTE-M parameters can be
-readily adapted to the regulatory requirements of different geographical
-regions.
+The self-test sequence shall log the results of the executed tests over USB for
+debugging purposes.
 
 % =============================================================================
 \section{Verification}
 % =============================================================================
 
-Each requirement shall be verified through analysis of the logs generated by
-the firmware, as specified in Requirement~\#016.
+Requirements might be verified through analysis of:
 
-When applicable, verification shall also include analysis of the data
-received by the cloud platform.
+\begin{itemize}
+    \item firmware logs;
+    \item data received by the cloud platform;
+    \item data returned by the CLI verification image; and/or
+    \item source code.
+\end{itemize}
 
 For requirements that specify different outcomes under different conditions,
-each condition and its corresponding outcome shall be independently tested.
+each condition and its corresponding outcome will be independently tested.
 
-\subsection{Firmware Test Image}
-
-The firmware shall provide an option for building a dedicated test image.
-
-This test image shall be used to verify:
-
-\begin{itemize}
-    \item that audio tracks are recorded according to Requirement~\#005; and
-    \item that the audio processing algorithm specified in Requirement~\#009
-          is correctly implemented.
-\end{itemize}
-
-The test image shall not operate according to the modes described in
-Section~\ref{section:modes}.
-
-Instead, it shall:
-
-\begin{itemize}
-    \item initialize only the hardware and software components required for
-          the verification procedures; and
-    \item provide a command-line interface through the system's USB
-          interface.
-\end{itemize}
-
-The command-line interface shall support the following commands:
-
-\begin{description}[
-    style=nextline,
-    leftmargin=0pt,
-    labelindent=0pt,
-    font=\ttfamily
-]
-
-    \item[recordAudioTrack]
-    Record an audio track and transmit its samples through the USB logging
-    interface.
-
-    \item[processAudioTrack]
-    Record an audio track, transmit its samples through the USB logging
-    interface, process the track according to the audio processing algorithm,
-    and transmit the processing results through the USB logging interface.
-
-\end{description}
-
-% =============================================================================
-\appendix
-\section{Assumptions and Dependencies}
-% =============================================================================
-
-It is assumed that the audio processing algorithm and all associated
-implementation details will be specified externally.
-
-Therefore, the detailed specification of the audio processing algorithm is
-outside the scope of this document.
+The firmware product will include a report with details about the verification
+performed for each requirement.
 
 \end{document}
-

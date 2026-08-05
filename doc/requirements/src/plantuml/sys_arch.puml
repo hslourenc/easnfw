@@ -1,0 +1,55 @@
+@startuml
+skinparam defaultFontSize 36
+skinparam ArrowThickness 2
+skinparam CloudBorderThickness 2
+skinparam AgentBorderThickness 2
+skinparam ActorBorderThickness 2
+skinparam NodeBorderThickness 2
+skinparam PackageBorderThickness 2
+skinparam NoteBorderThickness 2
+skinparam ComponentBorderThickness 2
+
+cloud Cloud
+agent "Host PC" as Host_PC
+note bottom of Host_PC
+Logging, debugging
+and testing
+end note
+actor "System operator" as System_operator
+
+node "EASN" {
+    package "EASNFW" {
+        [EASNFW_SENSOR]
+        [EASNFW_CLOUD]
+    }
+    [Audio sensor]
+    note bottom of [Audio sensor]
+        Part TBD
+    end note
+    [Environmental sensor]
+    note bottom of [Environmental sensor]
+        BME688 (Bosch)
+    end note
+    [Mass storage]
+    note bottom of [Mass storage]
+        Built-in SD card holder
+        from nRF5340 Audio DK
+    end note 
+    [External storage]
+    note bottom of [External storage]
+        Built-in flash memory
+        from nRF9151 SMA DK
+    end note
+}
+
+[EASNFW_SENSOR] <--> [Audio sensor]          : I2S
+[EASNFW_SENSOR] <--> [Environmental sensor]  : I2C
+[EASNFW_SENSOR] <--> Host_PC                 : USB
+[EASNFW_SENSOR] <--> [Mass storage]          : SPI
+[EASNFW_SENSOR] <--> [EASNFW_CLOUD]          : SPI
+[EASNFW_CLOUD]  <--> Cloud                   : HTTP over LTE-M
+[EASNFW_CLOUD]   --> Host_PC                 : USB
+[EASNFW_CLOUD]  <--> [External storage]      : SPI
+System_operator <--> Host_PC
+
+@enduml

@@ -1,4 +1,7 @@
-doc/requirements/out
+doc/requirements/out/*.aux
+doc/requirements/out/*.log
+doc/requirements/out/*.out
+doc/requirements/out/*.toc
 *.bkp
 *.bak
-fw/app/build
+**/app/build
