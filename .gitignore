@@ -4,4 +4,4 @@ doc/requirements/out/*.out
 doc/requirements/out/*.toc
 *.bkp
 *.bak
-fw/app/build
+**/app/build
