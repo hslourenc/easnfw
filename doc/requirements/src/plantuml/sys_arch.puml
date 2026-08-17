@@ -37,17 +37,17 @@ node "EASN" {
     end note 
     [External storage]
     note bottom of [External storage]
-        Built-in flash memory
+        Built-in external flash memory
         from nRF9151 SMA DK
     end note
 }
 
-[EASNFW_SENSOR] <--> [Audio sensor]          : I2S
+[EASNFW_SENSOR] <--> [Audio sensor]          : I2S (TBD)
 [EASNFW_SENSOR] <--> [Environmental sensor]  : I2C
 [EASNFW_SENSOR] <--> Host_PC                 : USB
 [EASNFW_SENSOR] <--> [Mass storage]          : SPI
 [EASNFW_SENSOR] <--> [EASNFW_CLOUD]          : SPI
-[EASNFW_CLOUD]  <--> Cloud                   : HTTP over LTE-M
+[EASNFW_CLOUD]  <--> Cloud                   : HTTPS over LTE-M
 [EASNFW_CLOUD]   --> Host_PC                 : USB
 [EASNFW_CLOUD]  <--> [External storage]      : SPI
 System_operator <--> Host_PC

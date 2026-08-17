@@ -11,7 +11,7 @@
 \usepackage{indentfirst}
 
 \title{EASNFW Requirements Specification v3}
-\author{Henrique Sander Lourenço, João Colombari}
+\author{Henrique Lourenço, João Colombari}
 \date{August 17, 2026}
 
 \begin{document}
@@ -80,14 +80,14 @@ peripheral.
 
 \subsubsection{Product Interfaces}
 
-EASNFW-CLOUD will communicate with the cloud using HTTP over LTE-M through the
+EASNFW-CLOUD will communicate with the cloud using HTTPS over LTE-M through the
 built-in LTE-M modem of nRF9151. Communication between EASNFW-CLOUD and the
-cloud platform is assymetric, in a way that only EASNFW-CLOUD can initiate the
+cloud platform is asymetric, in a way that only EASNFW-CLOUD can initiate the
 communication.
 
 EASNFW-SENSOR will provide a command line interface (CLI) for verifying
 specific features. Such interface will only be enabled when working with the
-``CLI verification image'' (see Section~\ref{sec:firmware-images}).
+``HIL verification image'' (see Section~\ref{sec:firmware-images}).
 
 Both EASNFW-SENSOR and EASNFW-CLOUD will log their own activities through the
 USB interface of their respective boards when logging is enabled.
@@ -181,8 +181,16 @@ Any failure that leads to system reset.
 
 \subsubsection{Payload}
 
-A payload is a collection of data transmitted by EASNFW to the cloud in a single
-message.
+Collection of data transmitted by EASNFW to the cloud in a single message.
+
+\subsubsection{Mass storage}
+
+SD card inserted in the built-in SD card holder of the nRF5340 Audio DK.
+
+\subsubsection{External storage}
+
+Built-in external flash memory of the nRF9151 SMA DK (built-in to the DK,
+external to the nRF9151 SiP).
 
 \section{Firmware Images}\label{sec:firmware-images}
 
@@ -243,11 +251,11 @@ power-on log payloads.
 \subsubsection{REQ-001}
 
 When the system is powered on, the firmware shall execute the initialization
-sequence, which comprises: (a) initializing critical peripherals\footnote{(a)
-is already taken care of by Zephyr.}; (b) running the self-test
-sequences; (c) establishing an Internet connection; (d) transmitting
-the power-on log payload to the cloud; and (e) transmitting to the cloud any
-pending ecoacoustic record payloads from previous boot cycles.
+sequence, which comprises: (a) initializing critical peripherals\footnote{(a) is
+already taken care of by Zephyr.}; (b) running the self-test sequence; (c)
+establishing an Internet connection; (d) transmitting the power-on log payload
+to the cloud; and (e) transmitting to the cloud any pending ecoacoustic record
+payloads from previous boot cycles.
 
 \subsection{Data Acquisition}
 
@@ -264,11 +272,11 @@ Parameters for audio sampling:
     \item Number of channels: 1
     \item Sample rate: PARAM\_AUDIO\_SAMPLE\_RATE kHz
     \item Bandwidth: PARAM\_AUDIO\_SAMPLE\_BW\_LO Hz -
-          PARAM\_AUDIO\_SAMPLE\_BW\_HI kHz
+          PARAM\_AUDIO\_SAMPLE\_BW\_HI Hz
     \item Sample width: PARAM\_AUDIO\_SAMPLE\_WIDTH bits
 \end{itemize}
 
-\subsubsection{REQ-003}
+\subsubsection{REQ-003}\label{sec:req003}
 
 The firmware shall detect the loss of any audio samples and restart the audio
 track sampling in such an event.
@@ -277,7 +285,9 @@ track sampling in such an event.
 
 Before the beginning of the sampling of each audio track, the firmware shall
 capture a timestamp, including the date and time with at least a 1-second
-resolution, and sample the environmental data.
+resolution, and sample the environmental data. In the event of losing audio
+samples (see~\ref{sec:req003}), the firmware shall capture new timestamp and
+environental data samples.
 
 \subsection{Data Processing}
 
@@ -299,7 +309,9 @@ the beginning of the sampling of that audio track, to the cloud.
 When the transmission of the power-on log payload to the cloud fails, the
 firmware shall retry transmitting it up to PARAM\_NUM\_RETRY\_TX\_CLOUD times
 with an exponential backoff model defined by $t[s]=2^c$, where $c$ is the number
-of times that the transmission has been retried.
+of times that the transmission has been retried. Reaching
+PARAM\_NUM\_RETRY\_TX\_CLOUD failed retry attempts is treated as a fatal
+failure.
 
 \subsubsection{REQ-008}
 
@@ -308,7 +320,9 @@ firmware shall retry transmitting it until the free space of the mass storage
 is insufficient to store the data relative to another audio track. The firmware
 shall use an exponential backoff model defined by $t[s]=2^c$, where $c$ is the
 number of times that the transmission has been retried, with an upper limit of
-PARAM\_MAX\_INTERVAL\_BETWEEN\_RETRIES seconds between retries.
+PARAM\_MAX\_INTERVAL\_BETWEEN\_RETRIES seconds between retries. Running into
+insufficient space to store the data relative to another audio track is treated
+as a fatal failure.
 
 \subsection{Data Persistence}
 
@@ -326,48 +340,46 @@ The firmware shall persist details of fatal failures across boot cycles.
 \subsubsection{REQ-011}
 
 When the firmware is waiting for triggers to take action, the firmware shall
-enter an energy-saving state.
+enter an energy-saving state.\footnote{No measurable criteria is defined for
+this requirement as the applicable energy-saving strategies will be investigated
+during development.}
 
 \subsection{Self-test Sequence}
 
 \subsubsection{REQ-012}
 
-The self-test sequence shall verify that audio data can be sampled from the
-audio sensor.
+During the self-test sequence, the firmware shall verify that audio data can be
+sampled from the audio sensor.
 
 \subsubsection{REQ-013}
 
-The self-test sequence shall verify that environmental data can be sampled from
-the environmental sensor.
+During the self-test sequence, the firmware shall verify that environmental data
+can be sampled from the environmental sensor.
 
 \subsubsection{REQ-014}
 
-The self-test sequence shall verify that data can be written to and read from
-the mass storage.
+During the self-test sequence, the firmware shall verify that data can be
+written to and read from the mass storage.
 
 \subsubsection{REQ-015}
 
-The self-test sequence shall verify that data can be written to and read from
-the external storage.
+During the self-test sequence, the firmware shall verify that data can be
+written to and read from the external storage.
 
 \subsubsection{REQ-016}
 
-The self-test sequence shall verify the communication between EASNFW-SENSOR and
-EASNFW-CLOUD.
+During the self-test sequence, the firmware shall verify the communication
+between EASNFW-SENSOR and EASNFW-CLOUD.
 
 \subsubsection{REQ-017}
 
-The self-test sequence shall verify that data can be transmitted to the cloud.
+During the self-test sequence, the firmware shall verify that data can be
+transmitted to the cloud.
 
 \subsubsection{REQ-018}
 
-The self-test sequence shall verify that the reason for the last power-off can
-be retrieved.
-
-\subsubsection{REQ-019}
-
-The self-test sequence shall log the results of the executed tests over USB for
-debugging purposes.
+During the self-test sequence, the firmware shall verify that the reason for the
+last power-off can be retrieved.
 
 \subsection{Observability}
 
@@ -389,7 +401,7 @@ The following parameters shall be configurable at compile-time via Kconfig:
     \item PARAM\_NUM\_RETRY\_TX\_CLOUD
     \item PARAM\_AUDIO\_SAMPLE\_RATE (kHz)
     \item PARAM\_AUDIO\_SAMPLE\_BW\_LO (Hz)
-    \item PARAM\_AUDIO\_SAMPLE\_BW\_HI (kHz)
+    \item PARAM\_AUDIO\_SAMPLE\_BW\_HI (Hz)
     \item PARAM\_AUDIO\_SAMPLE\_WIDTH (bits)
     \item PARAM\_MAX\_INTERVAL\_BETWEEN\_RETRIES (seconds)
 \end{itemize}
@@ -399,7 +411,7 @@ The following parameters shall be configurable at compile-time via Kconfig:
 \subsubsection{REQ-022}
 
 The firmware shall treat any detected failure that does not have a handling
-strategy explicitely specified in this document as a fatal failure.
+strategy explicitly specified in this document as a fatal failure.
 
 % =============================================================================
 \section{Design Constraints}
@@ -420,7 +432,7 @@ Requirements might be verified through analysis of:
 \begin{itemize}
     \item firmware logs;
     \item data received by the cloud platform;
-    \item data returned by the CLI verification image; and/or
+    \item data returned by the HIL verification image; and/or
     \item source code.
 \end{itemize}
 
@@ -449,7 +461,7 @@ data and firmware logs that audio tracks of PARAM\_TRACK\_LEN seconds are
 sampled with a PARAM\_INTER\_TRACK\_INTERVAL-second interval between consecutive
 tracks, and that the sampled tracks conform to the configured parameters (1
 channel, PARAM\_AUDIO\_SAMPLE\_RATE kHz sample rate, PARAM\_AUDIO\_SAMPLE\_BW\_LO
-Hz to PARAM\_AUDIO\_SAMPLE\_BW\_HI kHz bandwidth, and PARAM\_AUDIO\_SAMPLE\_WIDTH
+Hz to PARAM\_AUDIO\_SAMPLE\_BW\_HI Hz bandwidth, and PARAM\_AUDIO\_SAMPLE\_WIDTH
 bits sample width).
 
 \subsubsection{TC-003 (REQ-003)}
@@ -624,15 +636,5 @@ Issue the command to create multiple ecoacoustic record payloads, and simulate
 transmission failures so that the payloads remain unsent. Power cycle the system
 and verify through firmware logs and the data received by the cloud platform that
 the payloads are transmitted after the new boot.
-
-\subsubsection{TC-031}
-
-Issue the CLI command to retrieve the firmware version. Verify that the returned
-version matches the expected version.
-
-\subsubsection{TC-033}
-
-Issue the CLI command to check the free space of the mass storage. Verify that
-the returned value matches the expected free space.
 
 \end{document}
