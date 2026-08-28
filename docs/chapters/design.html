@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Firmware Design &#8212; EASNFW Pre-alpha v4 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/classic.css?v=2bf1fcf8" />
+    
+    <script src="../_static/documentation_options.js?v=a583efd8"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="Firmware Architecture" href="architecture.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="architecture.html" title="Firmware Architecture"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">EASNFW Pre-alpha v4 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Firmware Design</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="firmware-design">
+<h1>Firmware Design<a class="headerlink" href="#firmware-design" title="Link to this heading">¶</a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">¶</a></h2>
+<p>This section breaks the firmware architecture described previously down
+into modules. Each thread from the architecture document is implemented
+as a thin orchestration module, which in turn relies on lower-level
+modules that encapsulate specific concerns (sensor sampling, on-the-wire
+protocols, storage, connectivity, and so on). This separation keeps
+thread modules focused on sequencing and data pipeline handling, while
+the underlying logic and hardware access stay independently reusable and
+testable.</p>
+<p>As with the architecture document, this design intentionally stays at a high
+level and does not go into implementation detail in areas that are still TBD
+elsewhere in the specification (e.g. the audio processing algorithm).</p>
+</section>
+<section id="module-layering">
+<h2>Module Layering<a class="headerlink" href="#module-layering" title="Link to this heading">¶</a></h2>
+<p>Modules are organized in three layers, plus a shared layer for code used
+by both components:</p>
+<ul class="simple">
+<li><p><strong>Application layer</strong> — one module per thread (as defined in the
+architecture document). These modules own a thread’s main loop, read
+from and write to its message queues, and call into the domain and
+driver layers to do the actual work.</p></li>
+<li><p><strong>Domain layer</strong> — modules that implement a specific piece of
+functional logic (e.g. assembling an ecoacoustic record, running the
+self-test checks, formatting a cloud payload), independent of which
+thread calls them.</p></li>
+<li><p><strong>Driver / platform layer</strong> — thin wrappers around Zephyr drivers and
+subsystems (sensors, SPI, file system, NVS, modem), isolating the rest
+of the firmware from hardware and Zephyr API specifics.</p></li>
+<li><p><strong>Shared layer</strong> — modules used by both EASNFW-SENSOR and
+EASNFW-CLOUD, mainly data structure and protocol definitions that need
+to stay consistent on both ends of the SPI link.</p></li>
+</ul>
+<p>Logging (REQ-013) is not modeled as a separate module: each module
+registers its own Zephyr log module (<code class="docutils literal notranslate"><span class="pre">LOG_MODULE_REGISTER</span></code>) and uses
+the logging subsystem directly. Power management (REQ-012) is likewise
+not a standalone module at this stage; it is expected to rely on Zephyr’s
+power management subsystem together with threads naturally idling while
+blocked on message queues.</p>
+</section>
+<section id="shared-modules">
+<h2>Shared Modules<a class="headerlink" href="#shared-modules" title="Link to this heading">¶</a></h2>
+<table class="docutils align-default" id="id4">
+<caption><span class="caption-number">Table 7 </span><span class="caption-text">Modules shared between EASNFW-SENSOR and EASNFW-CLOUD</span><a class="headerlink" href="#id4" title="Link to this table">¶</a></caption>
+<colgroup>
+<col style="width: 22.0%" />
+<col style="width: 15.0%" />
+<col style="width: 63.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Module</p></th>
+<th class="head"><p>Layer</p></th>
+<th class="head"><p>Responsibility</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">spi_protocol</span></code></p></td>
+<td><p>Shared</p></td>
+<td><p>Defines the message/frame types exchanged over the SPI link
+(payload transfer, delivery acknowledgements) and their
+(de)serialization. Used by <code class="docutils literal notranslate"><span class="pre">cloud_link</span></code> and <code class="docutils literal notranslate"><span class="pre">sensor_link</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ecoacoustic_record</span></code></p></td>
+<td><p>Shared</p></td>
+<td><p>Defines the in-memory representation of an ecoacoustic record
+(processed audio blocks, environmental sample, timestamps) so
+that both components interpret the same data consistently.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">retry</span></code></p></td>
+<td><p>Shared</p></td>
+<td><p>Generic exponential backoff/retry utility. Used by <code class="docutils literal notranslate"><span class="pre">cloud_tx</span></code>
+(REQ-011); kept generic in case other retry needs arise later.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="easnfw-sensor-modules">
+<h2>EASNFW-SENSOR Modules<a class="headerlink" href="#easnfw-sensor-modules" title="Link to this heading">¶</a></h2>
+<section id="application-layer">
+<h3>Application layer<a class="headerlink" href="#application-layer" title="Link to this heading">¶</a></h3>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Module</p></th>
+<th class="head"><p>Owns thread</p></th>
+<th class="head"><p>Responsibility</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sampling</span></code></p></td>
+<td><p>Sampling</p></td>
+<td><p>Runs the self-test sequence at boot, then loops acquiring audio
+and environmental data per track (REQ-001 to REQ-005).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">audio_processing</span></code></p></td>
+<td><p>Processing</p></td>
+<td><p>Consumes audio blocks and runs the audio processing algorithm on
+each (REQ-006).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">storage</span></code></p></td>
+<td><p>Storage</p></td>
+<td><p>Persists processed blocks and environmental data/timestamps,
+assembles ecoacoustic records, removes them once delivery is
+confirmed, and stores failure details to NVS (REQ-004, REQ-007,
+REQ-008, REQ-010, REQ-011).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cloud_link</span></code></p></td>
+<td><p>Transmission</p></td>
+<td><p>Sends payloads to EASNFW-CLOUD and reports delivery outcomes back
+to <code class="docutils literal notranslate"><span class="pre">storage</span></code> (REQ-002, REQ-003, REQ-009).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="domain-layer">
+<h3>Domain layer<a class="headerlink" href="#domain-layer" title="Link to this heading">¶</a></h3>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 80.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Module</p></th>
+<th class="head"><p>Responsibility</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">audio_sampling</span></code></p></td>
+<td><p>Encapsulates audio acquisition: configuring and triggering the
+audio sensor, buffering samples. Used by <code class="docutils literal notranslate"><span class="pre">sampling</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">env_sampling</span></code></p></td>
+<td><p>Encapsulates environmental data acquisition. Used by
+<code class="docutils literal notranslate"><span class="pre">sampling</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">audio_algo</span></code></p></td>
+<td><p>Implementation of the (TBD) audio processing algorithm. Used by
+<code class="docutils literal notranslate"><span class="pre">audio_processing</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">selftest</span></code></p></td>
+<td><p>Implements the individual self-test checks and their aggregation
+(REQ-001). Used by <code class="docutils literal notranslate"><span class="pre">sampling</span></code> during initialization.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="driver-platform-layer">
+<h3>Driver / platform layer<a class="headerlink" href="#driver-platform-layer" title="Link to this heading">¶</a></h3>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 80.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Module</p></th>
+<th class="head"><p>Responsibility</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">audio_sensor_drv</span></code></p></td>
+<td><p>Thin wrapper around the Zephyr driver for the audio sensor
+(PDM). Used by <code class="docutils literal notranslate"><span class="pre">audio_sampling</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">env_sensor_drv</span></code></p></td>
+<td><p>Thin wrapper around the Zephyr sensor driver for the
+environmental sensor (I2C). Used by <code class="docutils literal notranslate"><span class="pre">env_sampling</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mass_storage</span></code></p></td>
+<td><p>Wraps the Zephyr file system used on the SD card. Used by
+<code class="docutils literal notranslate"><span class="pre">storage</span></code> and <code class="docutils literal notranslate"><span class="pre">selftest</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nvs</span></code></p></td>
+<td><p>Wraps Zephyr’s NVS subsystem. Used by <code class="docutils literal notranslate"><span class="pre">storage</span></code> and
+<code class="docutils literal notranslate"><span class="pre">selftest</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">spi_transport</span></code></p></td>
+<td><p>Low-level SPI send/receive and framing, used together with
+<code class="docutils literal notranslate"><span class="pre">spi_protocol</span></code>. Used by <code class="docutils literal notranslate"><span class="pre">cloud_link</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="easnfw-cloud-modules">
+<h2>EASNFW-CLOUD Modules<a class="headerlink" href="#easnfw-cloud-modules" title="Link to this heading">¶</a></h2>
+<section id="id1">
+<h3>Application layer<a class="headerlink" href="#id1" title="Link to this heading">¶</a></h3>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Module</p></th>
+<th class="head"><p>Owns thread</p></th>
+<th class="head"><p>Responsibility</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sensor_link</span></code></p></td>
+<td><p>Receiving</p></td>
+<td><p>Receives payloads from EASNFW-SENSOR over SPI and relays delivery
+acknowledgements back to it (REQ-002, REQ-003, REQ-009).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">payload_assembler</span></code></p></td>
+<td><p>Assembling</p></td>
+<td><p>Builds cloud-platform-ready payloads from received data
+(REQ-002, REQ-003, REQ-009).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cloud_tx</span></code></p></td>
+<td><p>Transmitting</p></td>
+<td><p>Transmits payloads to the cloud platform, with retry/backoff on
+failure (REQ-009, REQ-011).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id2">
+<h3>Domain layer<a class="headerlink" href="#id2" title="Link to this heading">¶</a></h3>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 80.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Module</p></th>
+<th class="head"><p>Responsibility</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">payload_format</span></code></p></td>
+<td><p>Formats/serializes data into the representation expected by the
+cloud platform (e.g. JSON). Used by <code class="docutils literal notranslate"><span class="pre">payload_assembler</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id3">
+<h3>Driver / platform layer<a class="headerlink" href="#id3" title="Link to this heading">¶</a></h3>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 80.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Module</p></th>
+<th class="head"><p>Responsibility</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">spi_transport</span></code></p></td>
+<td><p>Low-level SPI send/receive and framing, used together with
+<code class="docutils literal notranslate"><span class="pre">spi_protocol</span></code>. Used by <code class="docutils literal notranslate"><span class="pre">sensor_link</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">http_client</span></code></p></td>
+<td><p>Handles request/response exchanges with the cloud platform. Used
+by <code class="docutils literal notranslate"><span class="pre">cloud_tx</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">lte_m</span></code></p></td>
+<td><p>Wraps modem/connectivity management for the LTE-M link. Used by
+<code class="docutils literal notranslate"><span class="pre">http_client</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="diagram">
+<h2>Diagram<a class="headerlink" href="#diagram" title="Link to this heading">¶</a></h2>
+<p class="plantuml">
+<img src="../_images/plantuml-dd62c5f97b234257702fd1ffa263def3f2684594.png" alt="&#64;startuml
+skinparam componentStyle rectangle
+skinparam backgroundColor transparent
+
+package &quot;Shared&quot; {
+  [spi_protocol] as SpiProto
+  [ecoacoustic_record] as Record
+  [retry] as Retry
+}
+
+package &quot;EASNFW-SENSOR&quot; {
+  package &quot;Application&quot; as SensorApp {
+    [sampling] as Sampling
+    [audio_processing] as AudioProc
+    [storage] as Storage
+    [cloud_link] as CloudLink
+  }
+  package &quot;Domain&quot; as SensorDomain {
+    [audio_sampling] as AudioSampling
+    [env_sampling] as EnvSampling
+    [audio_algo] as AudioAlgo
+    [selftest] as Selftest
+  }
+  package &quot;Driver / Platform&quot; as SensorDriver {
+    [audio_sensor_drv] as AudioDrv
+    [env_sensor_drv] as EnvDrv
+    [mass_storage] as MassStorage
+    [nvs] as Nvs
+    [spi_transport] as SpiTransportS
+  }
+}
+
+package &quot;EASNFW-CLOUD&quot; {
+  package &quot;Application&quot; as CloudApp {
+    [sensor_link] as SensorLink
+    [payload_assembler] as Assembler
+    [cloud_tx] as CloudTx
+  }
+  package &quot;Domain&quot; as CloudDomain {
+    [payload_format] as PayloadFormat
+  }
+  package &quot;Driver / Platform&quot; as CloudDriver {
+    [spi_transport] as SpiTransportC
+    [http_client] as HttpClient
+    [lte_m] as LteM
+  }
+}
+
+Sampling --&gt; AudioSampling
+Sampling --&gt; EnvSampling
+Sampling --&gt; Selftest
+AudioSampling --&gt; AudioDrv
+EnvSampling --&gt; EnvDrv
+AudioProc --&gt; AudioAlgo
+Storage --&gt; MassStorage
+Storage --&gt; Nvs
+Storage --&gt; Record
+Selftest --&gt; Nvs
+Selftest --&gt; MassStorage
+Selftest --&gt; CloudLink
+CloudLink --&gt; SpiTransportS
+CloudLink --&gt; SpiProto
+CloudLink --&gt; Record
+
+SensorLink --&gt; SpiTransportC
+SensorLink --&gt; SpiProto
+Assembler --&gt; PayloadFormat
+Assembler --&gt; Record
+CloudTx --&gt; HttpClient
+CloudTx --&gt; Retry
+CloudTx --&gt; SpiProto
+HttpClient --&gt; LteM
+&#64;enduml"/>
+</p>
+</section>
+<section id="open-items-and-assumptions">
+<h2>Open Items and Assumptions<a class="headerlink" href="#open-items-and-assumptions" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">spi_protocol</span></code> and <code class="docutils literal notranslate"><span class="pre">payload_format</span></code> details are not yet defined.</p></li>
+<li><p>Only EASNFW-SENSOR is assumed to own persistent storage for failure
+details (<code class="docutils literal notranslate"><span class="pre">nvs</span></code>), consistent with the system architecture, where
+EASNFW-CLOUD’s backup storage is still TBD. If EASNFW-CLOUD gains its
+own persistent storage, a corresponding module would be added there.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">audio_algo</span></code> is a placeholder pending definition of the audio
+processing algorithm (REQ-006).</p></li>
+<li><p>The exact mechanics of the self-test check that verifies data can be
+transmitted to the cloud platform (REQ-001), which necessarily
+involves both components, are TBD.</p></li>
+</ul>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="../index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">Firmware Design</a><ul>
+<li><a class="reference internal" href="#overview">Overview</a></li>
+<li><a class="reference internal" href="#module-layering">Module Layering</a></li>
+<li><a class="reference internal" href="#shared-modules">Shared Modules</a></li>
+<li><a class="reference internal" href="#easnfw-sensor-modules">EASNFW-SENSOR Modules</a><ul>
+<li><a class="reference internal" href="#application-layer">Application layer</a></li>
+<li><a class="reference internal" href="#domain-layer">Domain layer</a></li>
+<li><a class="reference internal" href="#driver-platform-layer">Driver / platform layer</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#easnfw-cloud-modules">EASNFW-CLOUD Modules</a><ul>
+<li><a class="reference internal" href="#id1">Application layer</a></li>
+<li><a class="reference internal" href="#id2">Domain layer</a></li>
+<li><a class="reference internal" href="#id3">Driver / platform layer</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#diagram">Diagram</a></li>
+<li><a class="reference internal" href="#open-items-and-assumptions">Open Items and Assumptions</a></li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="architecture.html"
+                          title="previous chapter">Firmware Architecture</a></p>
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/chapters/design.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="architecture.html" title="Firmware Architecture"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">EASNFW Pre-alpha v4 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Firmware Design</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2026, Henrique Sander Lourenço, João Victor Colombari Carlet.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    </div>
+  </body>
+</html>
