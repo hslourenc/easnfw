@@ -45,3 +45,40 @@ environment variable to the path of the PlantUML jar and run:
 ```sh
 make -C doc/requirements plantuml
 ```
+
+## Building the firmware
+
+1. Install the command line version of nRF Connect SDK as per [Installing the nRF Connect SDK](https://nrfconnectdocs.nordicsemi.com/ncs/latest/nrf/installation/install_ncs.html).
+2. Start the toolchain environment with (also from [Installing the nRF Connect SDK](https://nrfconnectdocs.nordicsemi.com/ncs/latest/nrf/installation/install_ncs.html)):
+
+    **Linux:**
+
+    ```
+    nrfutil sdk-manager toolchain launch --ncs-version v3.4.0 --shell
+
+    ```
+
+    **macOS:**
+
+    ```
+    nrfutil sdk-manager toolchain launch --ncs-version v3.4.0 --shell
+    ```
+
+    **Windows:**
+
+    ```
+    nrfutil sdk-manager toolchain launch --ncs-version v3.4.0 --terminal
+    ```
+
+3. At the root of the repository, build EASNFW-SENSOR with:
+
+    ```
+    west build --pristine -b nrf5340_audio_dk/nrf5340/cpuapp fw/easnfw-sensor/app --build-dir fw/easnfw-sensor/app/build
+    ```
+    
+    and EASNFW-CLOUD with:
+    
+    ```
+    west build --pristine -b nrf9151dk/nrf9151 fw/easnfw-cloud/app --build-dir fw/easnfw-sensor/app/build
+    ```
+

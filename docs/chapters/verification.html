@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Verification &#8212; EASNFW Pre-alpha v4 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/classic.css?v=2bf1fcf8" />
+    
+    <script src="../_static/documentation_options.js?v=a583efd8"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Firmware Architecture" href="architecture.html" />
+    <link rel="prev" title="Requirements" href="requirements.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="architecture.html" title="Firmware Architecture"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="requirements.html" title="Requirements"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">EASNFW Pre-alpha v4 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Verification</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="verification">
+<h1>Verification<a class="headerlink" href="#verification" title="Link to this heading">¶</a></h1>
+<section id="hil-verification-image-test-cases">
+<h2>HIL Verification Image Test Cases<a class="headerlink" href="#hil-verification-image-test-cases" title="Link to this heading">¶</a></h2>
+<p>Since the HIL verification image does not execute business logic automatically
+out of reset, but instead exposes a command line interface (CLI) over USB that
+triggers specific code paths on demand, each test case below assumes it is
+driven by a host PC issuing CLI commands to EASNFW-SENSOR.</p>
+<section id="req-001-self-test-sequence">
+<h3>REQ-001: Self-test Sequence<a class="headerlink" href="#req-001-self-test-sequence" title="Link to this heading">¶</a></h3>
+<section id="tc-001-nvs-check-succeeds-under-normal-conditions">
+<h4>TC-001: NVS check succeeds under normal conditions<a class="headerlink" href="#tc-001-nvs-check-succeeds-under-normal-conditions" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the NVS read/write self-test check reports
+success when NVS is functional.</p>
+<p><strong>Preconditions:</strong> NVS is in a known-good state.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger the NVS check of the self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The check reports success after data was written to and
+read back from NVS correctly.</p>
+</section>
+<section id="tc-002-nvs-check-reports-failure-when-nvs-is-faulty">
+<h4>TC-002: NVS check reports failure when NVS is faulty<a class="headerlink" href="#tc-002-nvs-check-reports-failure-when-nvs-is-faulty" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the NVS check correctly reports failure when
+NVS cannot be written to or read from.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Inject an NVS fault via the test bench by simulating a write failure.</p></li>
+<li><p>Trigger the NVS check of the self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The check reports failure after data could not be written
+to NVS.</p>
+</section>
+<section id="tc-003-mass-storage-check-succeeds-under-normal-conditions">
+<h4>TC-003: Mass storage check succeeds under normal conditions<a class="headerlink" href="#tc-003-mass-storage-check-succeeds-under-normal-conditions" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the mass storage read/write self-test check
+reports success when the SD card is present and functional.</p>
+<p><strong>Preconditions:</strong> Mass storage is in a known-good state: SD card is inserted
+and functional.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger the mass storage check of the self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+<li><p>Read the mass storage contents.</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This test case implies the need for a CLI command to dump mass storage
+contents.</p>
+</div>
+<p><strong>Expected result:</strong> The check reports success after data was written to and
+read back from mass storage correctly.</p>
+</section>
+<section id="tc-004-mass-storage-check-reports-failure-when-the-sd-card-is-absent">
+<h4>TC-004: Mass storage check reports failure when the SD card is absent<a class="headerlink" href="#tc-004-mass-storage-check-reports-failure-when-the-sd-card-is-absent" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the mass storage check reports failure when
+the SD card is missing or unresponsive.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Remove the SD card or otherwise inject a mass storage fault via the test
+bench.</p></li>
+<li><p>Trigger the mass storage check of the self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The check reports failure after data could not be written
+to mass storage.</p>
+</section>
+<section id="tc-005-audio-sensor-sampling-check-succeeds-under-normal-conditions">
+<h4>TC-005: Audio sensor sampling check succeeds under normal conditions<a class="headerlink" href="#tc-005-audio-sensor-sampling-check-succeeds-under-normal-conditions" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the audio sensor check reports success when
+audio samples can be acquired.</p>
+<p><strong>Preconditions:</strong> The audio sensor is connected and operational.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger the audio sensor check of the self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The check reports success after a block of audio sample
+was acquired successfully.</p>
+</section>
+<section id="tc-006-audio-sensor-sampling-check-reports-failure-when-disconnected">
+<h4>TC-006: Audio sensor sampling check reports failure when disconnected<a class="headerlink" href="#tc-006-audio-sensor-sampling-check-reports-failure-when-disconnected" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the audio sensor check reports failure when
+the sensor cannot be sampled.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Disconnect the audio sensor or otherwise inject an audio sensor fault.</p></li>
+<li><p>Trigger the audio sensor check of the self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The check reports failure because an audio sample could
+not be acquired.</p>
+</section>
+<section id="tc-007-environmental-sensor-sampling-check-succeeds-under-normal-conditions">
+<h4>TC-007: Environmental sensor sampling check succeeds under normal conditions<a class="headerlink" href="#tc-007-environmental-sensor-sampling-check-succeeds-under-normal-conditions" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the environmental sensor check reports success
+when a sample can be acquired from the BME688.</p>
+<p><strong>Preconditions:</strong> The environmental sensor is connected over I2C and
+operational.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger the environmental sensor check of the self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The check reports success after a sample of each
+environmental variable sensed by BME688 was acquired successfully.</p>
+</section>
+<section id="tc-008-environmental-sensor-sampling-check-reports-failure-when-disconnected">
+<h4>TC-008: Environmental sensor sampling check reports failure when disconnected<a class="headerlink" href="#tc-008-environmental-sensor-sampling-check-reports-failure-when-disconnected" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the environmental sensor check reports failure
+when the sensor cannot be sampled.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Disconnect the environmental sensor from the I2C bus or otherwise inject
+an environmental sensor fault.</p></li>
+<li><p>Trigger the environmental sensor check of the self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The check reports failure because no samples could not be
+acquired from the environmental sensor.</p>
+</section>
+<section id="tc-009-easnfw-sensor-easnfw-cloud-communication-check-succeeds">
+<h4>TC-009: EASNFW-SENSOR/EASNFW-CLOUD communication check succeeds<a class="headerlink" href="#tc-009-easnfw-sensor-easnfw-cloud-communication-check-succeeds" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the inter-component communication check reports
+success when the SPI link between EASNFW-SENSOR and EASNFW-CLOUD is functional.</p>
+<p><strong>Preconditions:</strong> Both boards are connected via SPI and are in a known-good
+state.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger the inter-component communication check of the self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The check reports success after communication over the SPI
+link completed successfully.</p>
+</section>
+<section id="tc-010-easnfw-sensor-easnfw-cloud-communication-check-reports-failure">
+<h4>TC-010: EASNFW-SENSOR/EASNFW-CLOUD communication check reports failure<a class="headerlink" href="#tc-010-easnfw-sensor-easnfw-cloud-communication-check-reports-failure" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the communication check reports failure when
+the SPI link is unavailable.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Disconnect the SPI link between the two boards or power off EASNFW-CLOUD.</p></li>
+<li><p>Trigger the inter-component communication check of the self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The check reports failure because communication over the
+SPI link could not be completed.</p>
+</section>
+<section id="tc-011-cloud-platform-transmission-check-succeeds">
+<h4>TC-011: Cloud platform transmission check succeeds<a class="headerlink" href="#tc-011-cloud-platform-transmission-check-succeeds" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the check confirming data can be transmitted
+to the cloud platform reports success under normal network conditions.</p>
+<p><strong>Preconditions:</strong> LTE-M connectivity available and cloud platform reachable.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger the cloud transmission check of the self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The check reports success because data was transmitted
+to the cloud platform successfully over the available LTE-M connection.</p>
+</section>
+<section id="tc-012-cloud-platform-transmission-check-reports-failure-without-connectivity">
+<h4>TC-012: Cloud platform transmission check reports failure without connectivity<a class="headerlink" href="#tc-012-cloud-platform-transmission-check-reports-failure-without-connectivity" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the check reports failure when the LTE-M link
+or the cloud platform is unreachable.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Disable LTE-M connectivity (e.g. by removing the SIM card).</p></li>
+<li><p>Trigger the cloud transmission check of the self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The check reports failure after data could not be
+transmitted over LTE-M.</p>
+</section>
+<section id="tc-013-full-self-test-sequence-runs-all-checks-and-aggregates-results">
+<h4>TC-013: Full self-test sequence runs all checks and aggregates results<a class="headerlink" href="#tc-013-full-self-test-sequence-runs-all-checks-and-aggregates-results" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that a single invocation of the full self-test sequence
+executes all six checks (NVS, mass storage, audio sensor, environmental sensor,
+inter-component communication, cloud transmission) and reports an aggregated
+pass/fail result per check.</p>
+<p><strong>Preconditions:</strong> All modules checked by the self-test sequence are in a
+known-good state.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger the full self-test sequence.</p></li>
+<li><p>Observe the returned result and the USB log output.</p></li>
+<li><p>Repeat with exactly one subsystem faulted at a time (six repetitions,
+one per check).</p></li>
+</ol>
+<p><strong>Expected result:</strong> In step 1, all six checks report success. In each
+repetition of step 2, exactly the faulted check reports failure and the
+remaining five report success; this is all reflected in the returned CLI result
+/ USB log.</p>
+</section>
+</section>
+<section id="req-002-power-on-log-payload-transmission">
+<h3>REQ-002: Power-On Log Payload Transmission<a class="headerlink" href="#req-002-power-on-log-payload-transmission" title="Link to this heading">¶</a></h3>
+<section id="tc-014-power-on-log-payload-transmitted-when-all-checks-succeed">
+<h4>TC-014: Power-on log payload transmitted when all checks succeed<a class="headerlink" href="#tc-014-power-on-log-payload-transmitted-when-all-checks-succeed" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the power-on log payload is transmitted to the
+cloud platform when the self-test sequence completes with no failures.</p>
+<p><strong>Preconditions:</strong> All modules in a known-good state.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple" start="2">
+<li><p>Trigger the full self-test sequence.</p></li>
+<li><p>Monitor the cloud-facing interface (or a mock/stub cloud endpoint) and
+observe the returned result and USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The power-on log payload is transmitted and its content
+matches the current firmware revisions, the last reset reason, and the
+self-test results (all passing); this is reflected in the returned CLI result /
+USB log.</p>
+</section>
+<section id="tc-015-power-on-log-payload-transmitted-despite-a-non-blocking-failure">
+<h4>TC-015: Power-on log payload transmitted despite a non-blocking failure<a class="headerlink" href="#tc-015-power-on-log-payload-transmitted-despite-a-non-blocking-failure" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the power-on log payload is still transmitted
+when a failed check does not impact the ability to transmit data to the
+cloud platform.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Fault a subsystem that is unrelated to the transmit path (e.g. the
+audio sensor).</p></li>
+<li><p>Trigger the full self-test sequence.</p></li>
+<li><p>Monitor the cloud-facing interface and observe the returned result and USB
+log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The power-on log payload is transmitted, and its content
+reflects the audio sensor check as failed; this is reflected in the returned
+CLI result / USB log.</p>
+</section>
+<section id="tc-016-power-on-log-payload-skipped-when-transmission-is-impacted">
+<h4>TC-016: Power-on log payload skipped when transmission is impacted<a class="headerlink" href="#tc-016-power-on-log-payload-skipped-when-transmission-is-impacted" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the power-on log payload transmission is skipped
+when a failed check does impact EASNFW’s ability to transmit data to the cloud
+platform (e.g. the cloud transmission check itself, or the inter-component
+communication check).</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Fault the SPI link between EASNFW-SENSOR and EASNFW-CLOUD (or disable
+LTE-M connectivity).</p></li>
+<li><p>Trigger the full self-test sequence.</p></li>
+<li><p>Observe the returned result and USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> No power-on log payload transmission is attempted, and
+this is reflected in the returned CLI result / USB log.</p>
+</section>
+</section>
+<section id="req-003-pending-ecoacoustic-data-transmission">
+<h3>REQ-003: Pending Ecoacoustic Data Transmission<a class="headerlink" href="#req-003-pending-ecoacoustic-data-transmission" title="Link to this heading">¶</a></h3>
+<section id="tc-017-pending-ecoacoustic-records-transmitted-after-full-self-test-success">
+<h4>TC-017: Pending ecoacoustic records transmitted after full self-test success<a class="headerlink" href="#tc-017-pending-ecoacoustic-records-transmitted-after-full-self-test-success" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that ecoacoustic record data pending from a previous
+reset cycle is transmitted to the cloud platform after the power-on log payload
+step, when all self-test checks succeed.</p>
+<p><strong>Preconditions:</strong> One or more pending ecoacoustic records are present in mass
+storage (simulating records left over from a prior cycle); all modules are in a
+known-good state.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger a reset, then the full self-test sequence.</p></li>
+<li><p>Monitor the cloud-facing interface after the power-on log payload has
+been sent and observe the returned result and USB log output.</p></li>
+<li><p>Inspect mass storage contents.</p></li>
+</ol>
+<p><strong>Expected result:</strong> All pending ecoacoustic record payloads are transmitted to
+the cloud platform; the records are removed from mass storage after successful
+transmission; all this is reflected in the returned CLI result / USB log.</p>
+</section>
+<section id="tc-018-pending-ecoacoustic-records-not-transmitted-after-a-self-test-failure">
+<h4>TC-018: Pending ecoacoustic records not transmitted after a self-test failure<a class="headerlink" href="#tc-018-pending-ecoacoustic-records-not-transmitted-after-a-self-test-failure" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that pending ecoacoustic record data is not transmitted
+when at least one self-test check fails.</p>
+<p><strong>Preconditions:</strong> One or more complete ecoacoustic records are present in mass
+storage.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Fault any module checked by the self-test sequence.</p></li>
+<li><p>Trigger the full self-test sequence.</p></li>
+<li><p>Monitor the cloud-facing interface after the power-on log payload
+step and observe the returned result and USB log output.</p></li>
+<li><p>Inspect mass storage contents.</p></li>
+</ol>
+<p><strong>Expected result:</strong> No pending ecoacoustic record payloads are transmitted and
+the records remain in mass storage.</p>
+</section>
+<section id="tc-019-no-pending-data-results-in-no-transmission-attempt">
+<h4>TC-019: No pending data results in no transmission attempt<a class="headerlink" href="#tc-019-no-pending-data-results-in-no-transmission-attempt" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify graceful behavior when there is no pending ecoacoustic
+data to transmit.</p>
+<p><strong>Preconditions:</strong> Mass storage contains no complete ecoacoustic records, all
+modules are in a known-good state.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger the full self-test sequence.</p></li>
+<li><p>Monitor the cloud-facing interface after the power-on log payload
+step and observe the returned result and USB log output.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The power-on log payload is transmitted; no ecoacoustic
+record transmission is attempted and no error is reported.</p>
+</section>
+</section>
+<section id="req-004-self-test-sequence-failure">
+<h3>REQ-004: Self-test Sequence Failure<a class="headerlink" href="#req-004-self-test-sequence-failure" title="Link to this heading">¶</a></h3>
+<section id="tc-020-failed-checks-are-stored-to-nvs">
+<h4>TC-020: Failed checks are stored to NVS<a class="headerlink" href="#tc-020-failed-checks-are-stored-to-nvs" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that, after the power-on log payload step, the set of
+failed self-test checks is written to NVS.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Fault a subsystem other than NVS (e.g. the audio sensor).</p></li>
+<li><p>Trigger the self-test sequence.</p></li>
+<li><p>After the power-on log payload step completes (or is skipped), read
+back the failed-checks record from NVS.</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This test case implies the need for a CLI command to dump the NVS content.</p>
+</div>
+<p><strong>Expected result:</strong> The stored record identifies the audio sensor check
+as failed.</p>
+</section>
+<section id="tc-021-device-resets-after-storing-failed-checks">
+<h4>TC-021: Device resets after storing failed checks<a class="headerlink" href="#tc-021-device-resets-after-storing-failed-checks" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that EASNFW resets after the failed-checks storage
+step, following the power-on log payload step.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Fault a subsystem other than NVS.</p></li>
+<li><p>Trigger the full self-test sequence and observe device behavior via the USB
+logging interface.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The sequence of events observed is: self-test sequence
+runs to completion, power-on log payload step occurs (sent or skipped per
+REQ-002), failed checks are stored to NVS, device resets.</p>
+</section>
+<section id="tc-022-failed-checks-storage-is-skipped-when-nvs-itself-is-faulty">
+<h4>TC-022: Failed-checks storage is skipped when NVS itself is faulty<a class="headerlink" href="#tc-022-failed-checks-storage-is-skipped-when-nvs-itself-is-faulty" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that EASNFW does not attempt to store the failed
+checks to NVS when the NVS check itself is among the failures.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Fault NVS.</p></li>
+<li><p>Trigger the full self-test sequence and observe the returned result and USB
+logs.</p></li>
+</ol>
+<p><strong>Expected result:</strong> No attempt to write the failed-checks record to NVS
+is logged; the device still resets after the power-on log payload step.</p>
+</section>
+<section id="tc-023-device-resets-even-when-the-power-on-log-payload-step-was-skipped">
+<h4>TC-023: Device resets even when the power-on log payload step was skipped<a class="headerlink" href="#tc-023-device-resets-even-when-the-power-on-log-payload-step-was-skipped" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify the reset still occurs when a failure caused the
+power-on log payload transmission to be skipped (per REQ-002/TC-016).</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Fault the SPI link between EASNFW-SENSOR and EASNFW-CLOUD.</p></li>
+<li><p>Trigger the self-test sequence and observe the USB log.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The power-on log payload transmission is skipped,
+the failed checks are stored to NVS, and the device resets.</p>
+</section>
+</section>
+<section id="req-005-audio-and-environmental-data-sampling">
+<h3>REQ-005: Audio and Environmental Data Sampling<a class="headerlink" href="#req-005-audio-and-environmental-data-sampling" title="Link to this heading">¶</a></h3>
+<section id="tc-024-sampling-starts-after-the-initialization-transmissions-complete">
+<h4>TC-024: Sampling starts after the initialization transmissions complete<a class="headerlink" href="#tc-024-sampling-starts-after-the-initialization-transmissions-complete" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that audio and environmental sampling begins
+immediately after the power-on log payload and any pending ecoacoustic
+data have been transmitted.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Ensure all subsystems are in a known-good state and no ecoacoustic data
+pending transmission exists.</p></li>
+<li><p>Trigger the self-test sequence and monitor the USB log for the start
+of sampling.</p></li>
+</ol>
+<p><strong>Expected result:</strong> Sampling begins as soon as the power-on log payload is
+transmitted, without waiting for <code class="docutils literal notranslate"><span class="pre">PARAM_INTER_TRACK_INTERVAL</span></code>.</p>
+</section>
+<section id="tc-025-inter-track-interval-is-honored-between-consecutive-tracks">
+<h4>TC-025: Inter-track interval is honored between consecutive tracks<a class="headerlink" href="#tc-025-inter-track-interval-is-honored-between-consecutive-tracks" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that, after the first audio track, sampling of the
+next track does not begin until <code class="docutils literal notranslate"><span class="pre">PARAM_INTER_TRACK_INTERVAL</span></code> seconds
+have elapsed since the end of the previous track’s sampling.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Configure a short test value for <code class="docutils literal notranslate"><span class="pre">PARAM_INTER_TRACK_INTERVAL</span></code> and
+<code class="docutils literal notranslate"><span class="pre">PARAM_TRACK_LEN</span></code> via the CLI.</p></li>
+<li><p>Let two consecutive tracks be sampled.</p></li>
+<li><p>Measure the elapsed time between the end-of-sampling timestamp of
+track 1 and the start-of-sampling timestamp of track 2.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The measured interval is <code class="docutils literal notranslate"><span class="pre">PARAM_INTER_TRACK_INTERVAL</span></code>
+seconds.</p>
+</section>
+<section id="tc-026-one-environmental-sample-and-two-timestamps-are-captured-per-track">
+<h4>TC-026: One environmental sample and two timestamps are captured per track<a class="headerlink" href="#tc-026-one-environmental-sample-and-two-timestamps-are-captured-per-track" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that exactly one sample of each environmental
+variable is captured at the start of a track, along with a start
+timestamp and an end timestamp.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger a single track’s sampling.</p></li>
+<li><p>Inspect the CLI/log output for the captured environmental sample and
+the two timestamps.</p></li>
+</ol>
+<p><strong>Expected result:</strong> Exactly one temperature, humidity, pressure, and VOCs
+sample is captured; a start timestamp is captured before audio sampling begins
+and an end timestamp after it ends, with end greater than start.</p>
+</section>
+<section id="tc-027-audio-sampling-parameters-match-configuration">
+<h4>TC-027: Audio sampling parameters match configuration<a class="headerlink" href="#tc-027-audio-sampling-parameters-match-configuration" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that acquired audio matches the configured parameters: 1
+channel (mono), <code class="docutils literal notranslate"><span class="pre">PARAM_AUDIO_SAMPLE_RATE</span></code>-kHz sample rate,
+<code class="docutils literal notranslate"><span class="pre">PARAM_AUDIO_SAMPLE_WIDTH</span></code>-bit sample width, and <code class="docutils literal notranslate"><span class="pre">PARAM_TRACK_LEN</span></code>-second
+duration.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Configure known test values for <code class="docutils literal notranslate"><span class="pre">PARAM_AUDIO_SAMPLE_RATE</span></code>,
+<code class="docutils literal notranslate"><span class="pre">PARAM_AUDIO_SAMPLE_WIDTH</span></code>, and <code class="docutils literal notranslate"><span class="pre">PARAM_TRACK_LEN</span></code>.</p></li>
+<li><p>Feed a known test signal to the audio sensor input via the test bench.</p></li>
+<li><p>Retrieve the raw acquired samples and verify channel count, sample rate,
+sample width, and total duration.</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This test case implies the need for a CLI command to dump the raw audio
+samples to the host PC for analysis, and the ability to skip the audio
+processing step so that the raw samples can be retrieved.</p>
+</div>
+<p><strong>Expected result:</strong> All parameters match the configured parameter values
+within acceptable tolerance.</p>
+</section>
+<section id="tc-028-acquired-audio-is-band-limited-as-configured">
+<h4>TC-028: Acquired audio is band-limited as configured<a class="headerlink" href="#tc-028-acquired-audio-is-band-limited-as-configured" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the acquired audio signal’s energy outside the
+<code class="docutils literal notranslate"><span class="pre">[PARAM_AUDIO_SAMPLE_BW_LO,</span> <span class="pre">PARAM_AUDIO_SAMPLE_BW_HI]</span></code> (Hz) band is
+attenuated as expected.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Configure test values for the bandwidth parameters.</p></li>
+<li><p>Feed a known test signal to the audio sensor input via the test bench.</p></li>
+<li><p>Retrieve the raw acquired track and perform a frequency-domain analysis on
+the host PC.</p></li>
+</ol>
+<p><strong>Expected result:</strong> Signal content within the configured band is
+preserved; content outside the band is attenuated or not present.</p>
+</section>
+</section>
+<section id="req-006-audio-data-processing">
+<h3>REQ-006: Audio Data Processing<a class="headerlink" href="#req-006-audio-data-processing" title="Link to this heading">¶</a></h3>
+<section id="tc-029-processing-is-triggered-per-block-of-required-samples">
+<h4>TC-029: Processing is triggered per block of required samples<a class="headerlink" href="#tc-029-processing-is-triggered-per-block-of-required-samples" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that EASNFW-SENSOR processes each acquired block of
+<code class="docutils literal notranslate"><span class="pre">REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING</span></code> samples according to the
+audio processing algorithm.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Blocked / pending. The audio processing algorithm and the value of
+<code class="docutils literal notranslate"><span class="pre">REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING</span></code> is TBD. This test case should
+be detailed once the algorithm is specified.</p>
+</div>
+</section>
+</section>
+<section id="req-007-audio-data-persistence">
+<h3>REQ-007: Audio Data Persistence<a class="headerlink" href="#req-007-audio-data-persistence" title="Link to this heading">¶</a></h3>
+<section id="tc-030-processed-block-results-are-persisted-to-mass-storage">
+<h4>TC-030: Processed block results are persisted to mass storage<a class="headerlink" href="#tc-030-processed-block-results-are-persisted-to-mass-storage" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that, after each block of
+<code class="docutils literal notranslate"><span class="pre">REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING</span></code> samples is processed, the
+processing result is written to mass storage.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger sampling and processing of a full track.</p></li>
+<li><p>After each processed block, inspect mass storage contents.</p></li>
+</ol>
+<p><strong>Expected result:</strong> A new persisted entry appears in mass storage after
+each processed block, matching the processing output for that block.</p>
+</section>
+<section id="tc-031-all-blocks-of-a-track-are-persisted-by-the-time-the-track-completes">
+<h4>TC-031: All blocks of a track are persisted by the time the track completes<a class="headerlink" href="#tc-031-all-blocks-of-a-track-are-persisted-by-the-time-the-track-completes" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that, once an entire track has finished processing,
+mass storage holds the processed results for every block of that track.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger sampling and processing of a full track.</p></li>
+<li><p>After processing completes, list all mass storage-persisted blocks
+associated with the track.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The number of persisted blocks equals <code class="docutils literal notranslate"><span class="pre">PARAM_TRACK_LEN</span></code>
+worth of samples divided into blocks of
+<code class="docutils literal notranslate"><span class="pre">REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING</span></code>, with no gaps.</p>
+</section>
+</section>
+<section id="req-008-environmental-data-and-timestamps-persistence">
+<h3>REQ-008: Environmental Data and Timestamps Persistence<a class="headerlink" href="#req-008-environmental-data-and-timestamps-persistence" title="Link to this heading">¶</a></h3>
+<section id="tc-032-environmental-data-and-timestamps-persisted-after-track-completion">
+<h4>TC-032: Environmental data and timestamps persisted after track completion<a class="headerlink" href="#tc-032-environmental-data-and-timestamps-persisted-after-track-completion" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the environmental sample and the two timestamps
+captured for a track (REQ-005) are written to mass storage once all of the
+track’s audio samples have been processed.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger sampling and processing of a full track.</p></li>
+<li><p>After the last block is processed, inspect mass storage for the
+environmental data and timestamp entries associated with the track.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The persisted entry’s environmental values and
+timestamps match those captured during REQ-005’s sampling step for the
+same track.</p>
+</section>
+</section>
+<section id="req-009-ecoacoustic-data-transmission-to-the-cloud-platform">
+<h3>REQ-009: Ecoacoustic Data Transmission to the Cloud Platform<a class="headerlink" href="#req-009-ecoacoustic-data-transmission-to-the-cloud-platform" title="Link to this heading">¶</a></h3>
+<section id="tc-033-ecoacoustic-record-transmitted-once-fully-stored">
+<h4>TC-033: Ecoacoustic record transmitted once fully stored<a class="headerlink" href="#tc-033-ecoacoustic-record-transmitted-once-fully-stored" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that a complete ecoacoustic record (processed audio
+track, environmental samples, and timestamps) is transmitted to the cloud
+platform once all of its data is stored in mass storage.</p>
+<p><strong>Preconditions:</strong> Cloud connectivity available.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger sampling and processing of a full track through to persistence
+(REQ-007/REQ-008).</p></li>
+<li><p>Monitor the cloud-facing interface for the resulting ecoacoustic
+record payload(s).</p></li>
+</ol>
+<p><strong>Expected result:</strong> The record is transmitted, split across one or more
+payloads as needed.</p>
+</section>
+</section>
+<section id="req-010-ecoacoustic-data-removal-from-mass-storage">
+<h3>REQ-010: Ecoacoustic Data Removal from Mass Storage<a class="headerlink" href="#req-010-ecoacoustic-data-removal-from-mass-storage" title="Link to this heading">¶</a></h3>
+<section id="tc-034-record-removed-from-mass-storage-after-successful-transmission">
+<h4>TC-034: Record removed from mass storage after successful transmission<a class="headerlink" href="#tc-034-record-removed-from-mass-storage-after-successful-transmission" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that an ecoacoustic record is deleted from mass
+storage once it has been fully transmitted to the cloud platform.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Trigger sampling, processing, persistence and transmission of a full
+track (REQ-005 through REQ-009).</p></li>
+<li><p>After transmission completes, inspect mass storage for the record.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The record is no longer present in mass storage.</p>
+</section>
+<section id="tc-037-record-retained-in-mass-storage-when-transmission-fails">
+<h4>TC-037: Record retained in mass storage when transmission fails<a class="headerlink" href="#tc-037-record-retained-in-mass-storage-when-transmission-fails" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that a record is not removed from mass storage
+while its transmission has not yet succeeded.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Disable cloud connectivity.</p></li>
+<li><p>Trigger sampling, processing, and persistence of a full track.</p></li>
+<li><p>Allow the transmission attempt(s) to occur and fail.</p></li>
+<li><p>Inspect mass storage for the record.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The record remains present in mass storage.</p>
+</section>
+</section>
+<section id="req-011-payload-transmission-error-handling">
+<h3>REQ-011: Payload Transmission Error Handling<a class="headerlink" href="#req-011-payload-transmission-error-handling" title="Link to this heading">¶</a></h3>
+<section id="tc-038-failed-transmission-is-retried">
+<h4>TC-038: Failed transmission is retried<a class="headerlink" href="#tc-038-failed-transmission-is-retried" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that a failed payload transmission is retried.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Disable cloud connectivity.</p></li>
+<li><p>Trigger transmission of any payload (e.g. a pending ecoacoustic
+record).</p></li>
+<li><p>Monitor the USB log for retry attempts.</p></li>
+</ol>
+<p><strong>Expected result:</strong> At least one retry attempt is observed following the
+initial failure.</p>
+</section>
+<section id="tc-039-retries-follow-exponential-backoff-with-base-2">
+<h4>TC-039: Retries follow exponential backoff with base 2<a class="headerlink" href="#tc-039-retries-follow-exponential-backoff-with-base-2" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that the time interval between successive retries
+follows <span class="math notranslate nohighlight">\(t[s]=2^c\)</span>, where <code class="docutils literal notranslate"><span class="pre">c</span></code> is the retry count, per the
+“exponential backoff with base 2” description.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Disable cloud connectivity.</p></li>
+<li><p>Trigger transmission of a payload.</p></li>
+<li><p>Record the timestamps of the initial attempt and each subsequent retry
+from the USB log.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The interval before retry <code class="docutils literal notranslate"><span class="pre">c</span></code> is
+<span class="math notranslate nohighlight">\(2^c\)</span> seconds (within timing tolerance), for c = 1, 2, 3, …</p>
+</section>
+<section id="tc-040-retry-count-does-not-exceed-the-configured-maximum">
+<h4>TC-040: Retry count does not exceed the configured maximum<a class="headerlink" href="#tc-040-retry-count-does-not-exceed-the-configured-maximum" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that EASNFW stops retrying after
+<code class="docutils literal notranslate"><span class="pre">PARAM_NUM_RETRY_TX_CLOUD</span></code> attempts.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Configure a small test value for <code class="docutils literal notranslate"><span class="pre">PARAM_NUM_RETRY_TX_CLOUD</span></code>.</p></li>
+<li><p>Disable cloud connectivity.</p></li>
+<li><p>Trigger transmission of a payload and count retry attempts from the
+USB log.</p></li>
+</ol>
+<p><strong>Expected result:</strong> Exactly <code class="docutils literal notranslate"><span class="pre">PARAM_NUM_RETRY_TX_CLOUD</span></code> retries occur
+after the initial attempt, then no further retries are made.</p>
+</section>
+<section id="tc-041-failure-details-stored-to-nvs-and-device-resets-after-max-retries">
+<h4>TC-041: Failure details stored to NVS and device resets after max retries<a class="headerlink" href="#tc-041-failure-details-stored-to-nvs-and-device-resets-after-max-retries" title="Link to this heading">¶</a></h4>
+<p><strong>Objective:</strong> Verify that, once <code class="docutils literal notranslate"><span class="pre">PARAM_NUM_RETRY_TX_CLOUD</span></code> retries have
+failed, EASNFW stores failure details (including information identifying
+the failed payload) to NVS and resets.</p>
+<p><strong>Procedure:</strong></p>
+<ol class="arabic simple">
+<li><p>Configure a small test value for <code class="docutils literal notranslate"><span class="pre">PARAM_NUM_RETRY_TX_CLOUD</span></code>.</p></li>
+<li><p>Disable cloud connectivity.</p></li>
+<li><p>Trigger transmission of a payload and let all retries fail.</p></li>
+<li><p>After the reset, read back the failure record from NVS.</p></li>
+</ol>
+<p><strong>Expected result:</strong> The device resets after the final failed retry; the
+NVS record identifies the payload whose transmission failed.</p>
+</section>
+</section>
+</section>
+<section id="known-gaps">
+<h2>Known Gaps<a class="headerlink" href="#known-gaps" title="Link to this heading">¶</a></h2>
+<p>Requirement <a class="reference internal" href="requirements.html#section-req-save-energy"><span class="std std-ref">REQ-012: Save Energy While Idle</span></a> does not have associated test cases
+because it does not explicitly define when EASNFW is considered idle nor
+measurable criterion for the energy saving.</p>
+<p>Requirement <a class="reference internal" href="requirements.html#section-logging"><span class="std std-ref">REQ-013: Logging</span></a> does not have associated test cases because
+it does not explicitly define the activities that EASNFW should log, and it is
+rather left to the developer’s discretion.</p>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="../index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">Verification</a><ul>
+<li><a class="reference internal" href="#hil-verification-image-test-cases">HIL Verification Image Test Cases</a><ul>
+<li><a class="reference internal" href="#req-001-self-test-sequence">REQ-001: Self-test Sequence</a><ul>
+<li><a class="reference internal" href="#tc-001-nvs-check-succeeds-under-normal-conditions">TC-001: NVS check succeeds under normal conditions</a></li>
+<li><a class="reference internal" href="#tc-002-nvs-check-reports-failure-when-nvs-is-faulty">TC-002: NVS check reports failure when NVS is faulty</a></li>
+<li><a class="reference internal" href="#tc-003-mass-storage-check-succeeds-under-normal-conditions">TC-003: Mass storage check succeeds under normal conditions</a></li>
+<li><a class="reference internal" href="#tc-004-mass-storage-check-reports-failure-when-the-sd-card-is-absent">TC-004: Mass storage check reports failure when the SD card is absent</a></li>
+<li><a class="reference internal" href="#tc-005-audio-sensor-sampling-check-succeeds-under-normal-conditions">TC-005: Audio sensor sampling check succeeds under normal conditions</a></li>
+<li><a class="reference internal" href="#tc-006-audio-sensor-sampling-check-reports-failure-when-disconnected">TC-006: Audio sensor sampling check reports failure when disconnected</a></li>
+<li><a class="reference internal" href="#tc-007-environmental-sensor-sampling-check-succeeds-under-normal-conditions">TC-007: Environmental sensor sampling check succeeds under normal conditions</a></li>
+<li><a class="reference internal" href="#tc-008-environmental-sensor-sampling-check-reports-failure-when-disconnected">TC-008: Environmental sensor sampling check reports failure when disconnected</a></li>
+<li><a class="reference internal" href="#tc-009-easnfw-sensor-easnfw-cloud-communication-check-succeeds">TC-009: EASNFW-SENSOR/EASNFW-CLOUD communication check succeeds</a></li>
+<li><a class="reference internal" href="#tc-010-easnfw-sensor-easnfw-cloud-communication-check-reports-failure">TC-010: EASNFW-SENSOR/EASNFW-CLOUD communication check reports failure</a></li>
+<li><a class="reference internal" href="#tc-011-cloud-platform-transmission-check-succeeds">TC-011: Cloud platform transmission check succeeds</a></li>
+<li><a class="reference internal" href="#tc-012-cloud-platform-transmission-check-reports-failure-without-connectivity">TC-012: Cloud platform transmission check reports failure without connectivity</a></li>
+<li><a class="reference internal" href="#tc-013-full-self-test-sequence-runs-all-checks-and-aggregates-results">TC-013: Full self-test sequence runs all checks and aggregates results</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#req-002-power-on-log-payload-transmission">REQ-002: Power-On Log Payload Transmission</a><ul>
+<li><a class="reference internal" href="#tc-014-power-on-log-payload-transmitted-when-all-checks-succeed">TC-014: Power-on log payload transmitted when all checks succeed</a></li>
+<li><a class="reference internal" href="#tc-015-power-on-log-payload-transmitted-despite-a-non-blocking-failure">TC-015: Power-on log payload transmitted despite a non-blocking failure</a></li>
+<li><a class="reference internal" href="#tc-016-power-on-log-payload-skipped-when-transmission-is-impacted">TC-016: Power-on log payload skipped when transmission is impacted</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#req-003-pending-ecoacoustic-data-transmission">REQ-003: Pending Ecoacoustic Data Transmission</a><ul>
+<li><a class="reference internal" href="#tc-017-pending-ecoacoustic-records-transmitted-after-full-self-test-success">TC-017: Pending ecoacoustic records transmitted after full self-test success</a></li>
+<li><a class="reference internal" href="#tc-018-pending-ecoacoustic-records-not-transmitted-after-a-self-test-failure">TC-018: Pending ecoacoustic records not transmitted after a self-test failure</a></li>
+<li><a class="reference internal" href="#tc-019-no-pending-data-results-in-no-transmission-attempt">TC-019: No pending data results in no transmission attempt</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#req-004-self-test-sequence-failure">REQ-004: Self-test Sequence Failure</a><ul>
+<li><a class="reference internal" href="#tc-020-failed-checks-are-stored-to-nvs">TC-020: Failed checks are stored to NVS</a></li>
+<li><a class="reference internal" href="#tc-021-device-resets-after-storing-failed-checks">TC-021: Device resets after storing failed checks</a></li>
+<li><a class="reference internal" href="#tc-022-failed-checks-storage-is-skipped-when-nvs-itself-is-faulty">TC-022: Failed-checks storage is skipped when NVS itself is faulty</a></li>
+<li><a class="reference internal" href="#tc-023-device-resets-even-when-the-power-on-log-payload-step-was-skipped">TC-023: Device resets even when the power-on log payload step was skipped</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#req-005-audio-and-environmental-data-sampling">REQ-005: Audio and Environmental Data Sampling</a><ul>
+<li><a class="reference internal" href="#tc-024-sampling-starts-after-the-initialization-transmissions-complete">TC-024: Sampling starts after the initialization transmissions complete</a></li>
+<li><a class="reference internal" href="#tc-025-inter-track-interval-is-honored-between-consecutive-tracks">TC-025: Inter-track interval is honored between consecutive tracks</a></li>
+<li><a class="reference internal" href="#tc-026-one-environmental-sample-and-two-timestamps-are-captured-per-track">TC-026: One environmental sample and two timestamps are captured per track</a></li>
+<li><a class="reference internal" href="#tc-027-audio-sampling-parameters-match-configuration">TC-027: Audio sampling parameters match configuration</a></li>
+<li><a class="reference internal" href="#tc-028-acquired-audio-is-band-limited-as-configured">TC-028: Acquired audio is band-limited as configured</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#req-006-audio-data-processing">REQ-006: Audio Data Processing</a><ul>
+<li><a class="reference internal" href="#tc-029-processing-is-triggered-per-block-of-required-samples">TC-029: Processing is triggered per block of required samples</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#req-007-audio-data-persistence">REQ-007: Audio Data Persistence</a><ul>
+<li><a class="reference internal" href="#tc-030-processed-block-results-are-persisted-to-mass-storage">TC-030: Processed block results are persisted to mass storage</a></li>
+<li><a class="reference internal" href="#tc-031-all-blocks-of-a-track-are-persisted-by-the-time-the-track-completes">TC-031: All blocks of a track are persisted by the time the track completes</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#req-008-environmental-data-and-timestamps-persistence">REQ-008: Environmental Data and Timestamps Persistence</a><ul>
+<li><a class="reference internal" href="#tc-032-environmental-data-and-timestamps-persisted-after-track-completion">TC-032: Environmental data and timestamps persisted after track completion</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#req-009-ecoacoustic-data-transmission-to-the-cloud-platform">REQ-009: Ecoacoustic Data Transmission to the Cloud Platform</a><ul>
+<li><a class="reference internal" href="#tc-033-ecoacoustic-record-transmitted-once-fully-stored">TC-033: Ecoacoustic record transmitted once fully stored</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#req-010-ecoacoustic-data-removal-from-mass-storage">REQ-010: Ecoacoustic Data Removal from Mass Storage</a><ul>
+<li><a class="reference internal" href="#tc-034-record-removed-from-mass-storage-after-successful-transmission">TC-034: Record removed from mass storage after successful transmission</a></li>
+<li><a class="reference internal" href="#tc-037-record-retained-in-mass-storage-when-transmission-fails">TC-037: Record retained in mass storage when transmission fails</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#req-011-payload-transmission-error-handling">REQ-011: Payload Transmission Error Handling</a><ul>
+<li><a class="reference internal" href="#tc-038-failed-transmission-is-retried">TC-038: Failed transmission is retried</a></li>
+<li><a class="reference internal" href="#tc-039-retries-follow-exponential-backoff-with-base-2">TC-039: Retries follow exponential backoff with base 2</a></li>
+<li><a class="reference internal" href="#tc-040-retry-count-does-not-exceed-the-configured-maximum">TC-040: Retry count does not exceed the configured maximum</a></li>
+<li><a class="reference internal" href="#tc-041-failure-details-stored-to-nvs-and-device-resets-after-max-retries">TC-041: Failure details stored to NVS and device resets after max retries</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#known-gaps">Known Gaps</a></li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="requirements.html"
+                          title="previous chapter">Requirements</a></p>
+  </div>
+  <div>
+    <h4>Next topic</h4>
+    <p class="topless"><a href="architecture.html"
+                          title="next chapter">Firmware Architecture</a></p>
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/chapters/verification.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="architecture.html" title="Firmware Architecture"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="requirements.html" title="Requirements"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">EASNFW Pre-alpha v4 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Verification</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2026, Henrique Sander Lourenço, João Victor Colombari Carlet.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    </div>
+  </body>
+</html>
