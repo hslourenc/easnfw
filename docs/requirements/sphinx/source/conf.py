@@ -20,6 +20,7 @@ today = 'August 24, 2026'
 
 extensions = [
     'sphinxcontrib.plantuml',
+    'sphinx.ext.githubpages'
 ]
 
 templates_path = ['_templates']
