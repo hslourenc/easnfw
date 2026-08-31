@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - hslourenc/deploy-docs-actions
   workflow_dispatch: # allow manual triggering
 
 permissions:
