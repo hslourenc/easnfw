@@ -1,0 +1,28 @@
+mainmenu "EASN DMM-4026 I2S microphone testbed"
+
+config MIC_TESTBED_TRACK_SECONDS
+	int "Capture length in seconds"
+	default 60
+	range 1 3600
+	help
+	  Length of the WAV capture written to the SD card. The default matches
+	  the initial ecoacoustic track length in REQ-005.
+
+config MIC_TESTBED_WARMUP_BLOCKS
+	int "I2S blocks discarded before capture"
+	default 2
+	range 1 16
+	help
+	  The DMM-4026-B-I2S-R needs up to 20 ms to reach its specified
+	  sensitivity after its clock starts. Each testbed block is 32 ms.
+
+config MIC_TESTBED_MIN_ABS_PEAK
+	int "Minimum plausible absolute PCM16 peak"
+	default 128
+	range 1 32767
+	help
+	  Captures below this peak fail validation and remain as incomplete .tmp
+	  files. This is a wiring/silence diagnostic, not a microphone quality
+	  acceptance criterion.
+
+source "Kconfig.zephyr"

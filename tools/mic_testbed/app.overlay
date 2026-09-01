@@ -1,0 +1,38 @@
+#include <zephyr/dt-bindings/pinctrl/nrf-pinctrl.h>
+
+/*
+ * Route the nRF5340 audio serial port to the optional external-codec header
+ * (P10) instead of the onboard CS47L63.
+ */
+&gpio0 {
+	codec-interface {
+		/delete-property/ output-low;
+		output-high;
+	};
+};
+
+&pinctrl {
+	i2s0_mic_testbed_default: i2s0_mic_testbed_default {
+		group1 {
+			psels = <NRF_PSEL(I2S_SCK_M, 0, 14)>,
+				<NRF_PSEL(I2S_LRCK_M, 0, 16)>,
+				<NRF_PSEL(I2S_SDIN, 0, 15)>;
+		};
+	};
+
+	i2s0_mic_testbed_sleep: i2s0_mic_testbed_sleep {
+		group1 {
+			psels = <NRF_PSEL(I2S_SCK_M, 0, 14)>,
+				<NRF_PSEL(I2S_LRCK_M, 0, 16)>,
+				<NRF_PSEL(I2S_SDIN, 0, 15)>;
+			low-power-enable;
+		};
+	};
+};
+
+&i2s0 {
+	status = "okay";
+	pinctrl-0 = <&i2s0_mic_testbed_default>;
+	pinctrl-1 = <&i2s0_mic_testbed_sleep>;
+	pinctrl-names = "default", "sleep";
+};
