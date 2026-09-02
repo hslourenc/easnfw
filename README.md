@@ -14,37 +14,33 @@ EASNFW is subdivided into two components:
 
 ## Repository layout
 
-- `doc/` — project documentation
-  - `doc/requirements/` — requirements document (LaTeX source and build)
+- `docs/sphinx/source/` — source for requirements, architecture, design,
+  verification, and cloud-backend documentation
+- `docs/sphinx/build/html/` — locally generated documentation site
 - `fw/` — firmware source code
 
 ## Building the documentation
 
 ### Prerequisites
 
-- A TeX distribution with **LuaLaTeX** (e.g. TeX Live) and the LaTeX packages
-  used by the documents (`geometry`, `array`, `hyperref`, `graphicx`,
-  `indentfirst`).
-- **Java** and a **PlantUML jar** are only required to regenerate the diagrams
-  from the `.puml` sources. If you only want to build the PDF from the existing
-  images, they are not needed.
+- Python and the packages listed in `docs/requirements.txt`.
+- Java and a PlantUML jar for generating the diagrams.
 
 ### Steps
 
-Build the requirements document (PDF):
+Install the documentation dependencies:
 
 ```sh
-make -C doc/requirements
+python -m pip install -r docs/requirements.txt
 ```
 
-The output PDF is written to `doc/requirements/out/requirements.pdf`.
-
-To regenerate the PlantUML diagrams before building, set the `PLANTUML_JAR`
-environment variable to the path of the PlantUML jar and run:
+Set `PLANTUML_JAR` to a PlantUML jar and build the HTML site:
 
 ```sh
-make -C doc/requirements plantuml
+PLANTUML_JAR=/path/to/plantuml.jar make -C docs/sphinx html
 ```
+
+The output is written to `docs/sphinx/build/html`.
 
 ## Building the firmware
 
@@ -79,6 +75,5 @@ make -C doc/requirements plantuml
     and EASNFW-CLOUD with:
     
     ```
-    west build --pristine -b nrf9151dk/nrf9151 fw/easnfw-cloud/app --build-dir fw/easnfw-sensor/app/build
+    west build --pristine -b nrf9151dk/nrf9151 fw/easnfw-cloud/app --build-dir fw/easnfw-cloud/app/build
     ```
-

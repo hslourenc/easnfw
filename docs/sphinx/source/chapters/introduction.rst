@@ -56,8 +56,10 @@ Cloud Interface
 ^^^^^^^^^^^^^^^
 
 EASNFW-CLOUD communicates with the cloud using HTTPS over LTE-M through the
-built-in LTE-M modem of nRF9151. Communication is asymmetric, in a way that
-only EASNFW-CLOUD can send requests to the cloud.
+built-in LTE-M modem of nRF9151. Connections are always initiated by
+EASNFW-CLOUD. Besides uploading data, the protocol may later allow
+EASNFW-CLOUD to retrieve configuration or maintenance commands in HTTPS
+responses without requiring an inbound connection to the sensing node.
 
 USB Interfaces for Host Personal Computers (PCs)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -106,7 +108,7 @@ interacts with.
      - Purpose
    * - Audio sensor
      - TBD
-     - TBD
+     - I2S (initial baseline)
      - No
      - EASNFW-SENSOR
      - Acquire audio data.
@@ -239,11 +241,33 @@ Data Types
 Ecoacoustic Record
 ------------------
 
-An ecoacoustic record comprises a processed audio track, a single sample of
-each tracked environmental variable, and a timestamp indicating the date and
-time when sampling of the audio track began. Ecoacoustic records are
-transmitted to the cloud through ecoacoustic record payloads and may be
-organized into multiple payloads to provide flexibility in transmission.
+An ecoacoustic record is the canonical, persistent representation of one
+acquisition event. It is assembled by EASNFW-SENSOR and comprises a unique
+record identifier, the node and firmware identifiers, audio acquisition and
+processing configuration, a processed audio track, environmental data,
+quality/status flags, and timestamps indicating when acquisition began and
+ended. It may also reference a locally stored raw audio track.
+
+The record is complete only after all expected audio blocks and metadata have
+been persisted and validated. Complete records are committed atomically to
+mass storage and retained until the cloud platform confirms durable storage.
+
+SPI Transfer Frame
+------------------
+
+A versioned and checksummed fragment used to transfer a complete ecoacoustic
+record or another message between EASNFW-SENSOR and EASNFW-CLOUD. A record may
+span multiple frames. Frames carry, at minimum, a message type, record
+identifier, fragment index and count, payload length, and integrity check.
+
+Cloud Payload
+-------------
+
+A single HTTPS request body transmitted by EASNFW-CLOUD. It contains record
+data received from EASNFW-SENSOR and a transport envelope with schema version,
+node identity, delivery attempt information, and relevant network metadata.
+Cloud payload formatting is a transport concern and does not define the
+canonical on-device ecoacoustic record format.
 
 Power-on Log
 ------------
@@ -252,4 +276,3 @@ A power-on log consists of the respective revisions of EASNFW-SENSOR and
 EASNFW-CLOUD, the reason why the device was last reset, and the results of the
 self-test sequence. Power-on logs are transmitted to the cloud through power-on
 log payloads.
-
