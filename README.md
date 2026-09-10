@@ -44,7 +44,9 @@ The output is written to `docs/sphinx/build/html`.
 
 ## Building the firmware
 
-1. Install the command line version of nRF Connect SDK as per [Installing the nRF Connect SDK](https://nrfconnectdocs.nordicsemi.com/ncs/latest/nrf/installation/install_ncs.html).
+1. Install the command line version of nRF Connect SDK v3.4.0 as per
+   [Installing the nRF Connect
+   SDK](https://nrfconnectdocs.nordicsemi.com/ncs/3.4.0/nrf/installation/install_ncs.html).
 2. Start the toolchain environment with (also from [Installing the nRF Connect SDK](https://nrfconnectdocs.nordicsemi.com/ncs/latest/nrf/installation/install_ncs.html)):
 
     **Linux:**
@@ -66,7 +68,30 @@ The output is written to `docs/sphinx/build/html`.
     nrfutil sdk-manager toolchain launch --ncs-version v3.4.0 --terminal
     ```
 
-3. At the root of the repository, build EASNFW-SENSOR with:
+3. Run the script to define the required environment variables (assuming the
+   default locations were used to install nRF Connect SDK):
+
+    **Linux:**
+
+    ```
+    source ~/ncs/v3.4.0/zephyr/zephyr-env.sh
+
+    ```
+
+    **macOS:**
+
+    ```
+    source /opt/nordic/ncs/v3.4.0/zephyr/zephyr-env.sh
+
+    ```
+
+    **Windows:**
+
+    ```
+    C:\ncs\v3.4.0\zephyr\zephyr-env.cmd
+    ```
+
+4. At the root of the repository, build EASNFW-SENSOR with:
 
     ```
     west build --pristine -b nrf5340_audio_dk/nrf5340/cpuapp fw/easnfw-sensor/app --build-dir fw/easnfw-sensor/app/build
