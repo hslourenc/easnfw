@@ -13,10 +13,10 @@ demo:
 - an incomplete `.tmp` file on failure; and
 - an atomically renamed, directly playable WAV payload on success.
 
-Set `CONFIG_MIC_TESTBED_BYPASS_MASS_STORAGE=y` to run the microphone capture and
-signal checks without initializing or accessing an SD card. In this mode no WAV
-file is written, and the final validation covers the audio format, sample count,
-and signal activity only.
+The `CONFIG_MIC_TESTBED_BYPASS_MASS_STORAGE` configuration can be set to `y` to
+run the microphone capture and signal checks without initializing or accessing
+an SD card. In this mode no WAV file is written, and the final validation
+covers the audio format, sample count, and signal activity only.
 
 The CS47L63 is not initialized or used. The microphone is a digital source and
 the Audio DK's microSD interface is independent from the audio codec.
@@ -58,17 +58,17 @@ The image is validated with nRF Connect SDK v3.0.1:
 ```sh
 west build --no-sysbuild -p always \
   -b nrf5340_audio_dk/nrf5340/cpuapp \
-  tools/mic_testbed -d build/mic_testbed
+  tools/mic_testbed -d tools/mic_testbed/build
 ```
 
 Flash with:
 
 ```sh
-west flash -d build/mic_testbed
+west flash -d tools/mic_testbed/build
 ```
 
-The flashable files are generated under `build/mic_testbed/zephyr/`, including
-`zephyr.hex` and `zephyr.bin`.
+The flashable files are generated under `tools/mic_testbed/build/zephyr/`,
+including `zephyr.hex` and `zephyr.bin`.
 
 ## Validation procedure
 
