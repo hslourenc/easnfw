@@ -870,7 +870,8 @@ TC-049: Firmware availability is checked after complete record transmission
 
 **Objective:** Verify that EASNFW checks the cloud platform for firmware
 versions only after an ecoacoustic record has been completely transmitted and
-the current audio recording cycle has ended.
+then defers the firmware update itself until the current audio recording cycle
+has ended.
 
 **Procedure:**
 
@@ -879,9 +880,10 @@ the current audio recording cycle has ended.
 3. Monitor the cloud requests, audio-cycle state, and firmware version.
 
 **Expected result:** The firmware-availability check occurs after complete
-record transmission and after the current recording cycle. The latest
-available firmware versions are downloaded and scheduled for installation;
-the active recording is not interrupted.
+record transmission, without waiting for the current recording cycle to end.
+The latest available firmware versions are scheduled for update, and the
+update is performed only after the current recording cycle ends; the active
+recording is not interrupted.
 
 TC-050: No firmware update is attempted when no newer version is available
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
