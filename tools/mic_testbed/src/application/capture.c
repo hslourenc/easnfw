@@ -7,7 +7,9 @@
 #include <mic_testbed/audio_payload.h>
 #include <mic_testbed/capture.h>
 #include <mic_testbed/i2s_mic.h>
+#if !CONFIG_MIC_TESTBED_BYPASS_MASS_STORAGE
 #include <mic_testbed/sd_storage.h>
+#endif
 
 LOG_MODULE_REGISTER(mic_testbed_capture, LOG_LEVEL_INF);
 
@@ -39,6 +41,7 @@ int mic_testbed_capture_run(void)
 		MIC_TESTBED_TOTAL_SAMPLES,
 		MIC_TESTBED_TOTAL_SAMPLES * sizeof(int16_t));
 
+#if !CONFIG_MIC_TESTBED_BYPASS_MASS_STORAGE
 	ret = sd_storage_init();
 	if (ret < 0) {
 		return ret;
@@ -48,6 +51,7 @@ int mic_testbed_capture_run(void)
 	if (ret < 0) {
 		return ret;
 	}
+#endif
 	ret = i2s_mic_init();
 	if (ret < 0) {
 		goto abort_capture;
@@ -84,11 +88,13 @@ int mic_testbed_capture_run(void)
 			raw_block.size, pcm_block, &stats);
 		i2s_mic_release(&raw_block);
 
+#if !CONFIG_MIC_TESTBED_BYPASS_MASS_STORAGE
 		ret = sd_storage_append_audio(pcm_block, pcm_bytes);
 		if (ret < 0) {
 			LOG_ERR("SD write %u failed: %d", sequence, ret);
 			goto stop_i2s;
 		}
+#endif
 		blocks_written++;
 
 		if (((sequence + 1U) % 125U) == 0U) {
@@ -132,23 +138,37 @@ stop_i2s:
 		goto abort_capture;
 	}
 
+#if !CONFIG_MIC_TESTBED_BYPASS_MASS_STORAGE
 	ret = sd_storage_commit_capture();
 	if (ret < 0) {
 		return ret;
 	}
+#endif
 
 	LOG_INF("PCM range: %d to %d; absolute peak: %u",
 		stats.minimum, stats.maximum,
 		audio_payload_absolute_peak(&stats));
 	LOG_INF("Zero samples: %u/%u; clipped samples: %u",
 		stats.zero_samples, stats.sample_count, stats.clipped_samples);
-	LOG_INF("PASS: format, sample count, signal activity, and committed-file tests");
+	LOG_INF("PASS: format, sample count, and signal activity tests%s",
+#if !CONFIG_MIC_TESTBED_BYPASS_MASS_STORAGE
+		"; committed-file"
+#else
+		""
+#endif
+	);
 
+#if !CONFIG_MIC_TESTBED_BYPASS_MASS_STORAGE
 	LOG_INF("Remove the SD card after power-down and inspect %s",
 		sd_storage_capture_path());
+#else
+	LOG_INF("Mass storage bypassed; microphone-only validation complete");
+#endif
 	return 0;
 
 abort_capture:
+#if !CONFIG_MIC_TESTBED_BYPASS_MASS_STORAGE
 	(void)sd_storage_abort_capture();
+#endif
 	return ret;
 }

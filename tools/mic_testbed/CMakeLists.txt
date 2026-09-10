@@ -10,5 +10,8 @@ target_sources(app PRIVATE
 	src/application/capture.c
 	src/domain/audio_payload.c
 	src/platform/i2s_mic.c
-	src/platform/sd_storage.c
 )
+
+if (NOT CONFIG_MIC_TESTBED_BYPASS_MASS_STORAGE)
+	target_sources(app PRIVATE src/platform/sd_storage.c)
+endif()

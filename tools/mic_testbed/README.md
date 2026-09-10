@@ -13,6 +13,11 @@ demo:
 - an incomplete `.tmp` file on failure; and
 - an atomically renamed, directly playable WAV payload on success.
 
+Set `CONFIG_MIC_TESTBED_BYPASS_MASS_STORAGE=y` to run the microphone capture and
+signal checks without initializing or accessing an SD card. In this mode no WAV
+file is written, and the final validation covers the audio format, sample count,
+and signal activity only.
+
 The CS47L63 is not initialized or used. The microphone is a digital source and
 the Audio DK's microSD interface is independent from the audio codec.
 
@@ -35,8 +40,9 @@ The microphone supports 1.5-3.6 V operation, but its signal voltage must not
 exceed the DK I/O supply. Power and logic must use the same compatible domain.
 Do not hot-plug the microphone while the DK is powered.
 
-Insert a FAT32-formatted microSD card before boot. The image stores captures in
-`/easn/capture_NNNN.wav` and never overwrites an existing capture.
+For the default configuration, insert a FAT32-formatted microSD card before
+boot. The image stores captures in `/easn/capture_NNNN.wav` and never
+overwrites an existing capture. With mass storage bypassed, no card is needed.
 
 ## Why the I2S stream is configured as 32 bit
 
