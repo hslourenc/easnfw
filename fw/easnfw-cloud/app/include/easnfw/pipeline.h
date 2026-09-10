@@ -2,12 +2,7 @@
 #define EASNFW_PIPELINE_H
 
 #include <zephyr/kernel.h>
-#include <stdint.h>
-
-struct easnfw_pipeline_message {
-	uint32_t sequence;
-	uint8_t kind;
-};
+#include <easnfw/shared.h>
 
 extern struct k_msgq rx_payload_q;
 extern struct k_msgq assembled_payload_q;

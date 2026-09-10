@@ -1,0 +1,14 @@
+mainmenu "EASNFW-SENSOR"
+
+config EASNFW_SENSOR_BYPASS_MASS_STORAGE
+	bool "Bypass SD/mass storage operations"
+	default n
+	help
+	  Run acquisition and validation without mounting or accessing an SD card.
+
+config EASNFW_SENSOR_TRACK_SECONDS
+	int "Audio track duration in seconds"
+	default 60
+	range 1 3600
+
+source "Kconfig.zephyr"

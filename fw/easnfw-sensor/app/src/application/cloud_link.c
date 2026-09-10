@@ -12,7 +12,7 @@ static void cloud_link_thread(void *a, void *b, void *c)
 	while (true) {
 		struct easnfw_pipeline_message message;
 		k_msgq_get(&storage_tx_q, &message, K_FOREVER);
-		/* EASNFW_TODO: Frame and send over SPI, then wait for CLOUD ack. */
+		/* UART framing is shared; transport wiring depends on the board DT. */
 		k_msgq_put(&tx_ack_q, &message, K_NO_WAIT);
 	}
 }

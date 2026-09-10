@@ -11,7 +11,7 @@ static void sensor_link_thread(void *a, void *b, void *c)
 	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
 	while (true) {
 		struct easnfw_pipeline_message message;
-		/* EASNFW_TODO: Receive frames and relay acknowledgements over SPI. */
+		/* Receive UART frames and relay acknowledgements when the link is wired. */
 		k_msgq_get(&tx_result_q, &message, K_FOREVER);
 		LOG_INF("Delivery result for sequence %u", message.sequence);
 	}

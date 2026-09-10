@@ -2,12 +2,7 @@
 #define EASNFW_PIPELINE_H
 
 #include <zephyr/kernel.h>
-#include <stdint.h>
-
-struct easnfw_pipeline_message {
-	uint32_t sequence;
-	uint8_t kind;
-};
+#include <easnfw/shared.h>
 
 extern struct k_msgq audio_block_q;
 extern struct k_msgq track_meta_q;

@@ -7,6 +7,14 @@ struct easnfw_audio_block {
 	uint32_t sequence;
 };
 
+struct easnfw_audio_stats {
+	int16_t minimum;
+	int16_t maximum;
+	uint32_t zero_samples;
+	uint32_t clipped_samples;
+	uint32_t sample_count;
+};
+
 struct easnfw_environment_sample {
 	int32_t temperature_milli_c;
 	uint32_t pressure_pa;
@@ -17,5 +25,6 @@ int audio_sampling_acquire(struct easnfw_audio_block *block);
 int env_sampling_acquire(struct easnfw_environment_sample *sample);
 int audio_algo_process(const struct easnfw_audio_block *input,
 	struct easnfw_audio_block *output);
+int audio_capture_run(void);
 
 #endif

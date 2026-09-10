@@ -9,18 +9,22 @@ static struct k_thread sampling_thread_data;
 
 static void sampling_thread(void *a, void *b, void *c)
 {
-	uint32_t sequence = 0;
 	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
 	while (true) {
-		struct easnfw_audio_block block = { .sequence = sequence++ };
-		struct easnfw_environment_sample sample;
-		/* EASNFW_TODO: Enforce track timing and capture real sensor data. */
-		audio_sampling_acquire(&block);
-		env_sampling_acquire(&sample);
-		struct easnfw_pipeline_message message = { block.sequence, 0 };
-		k_msgq_put(&audio_block_q, &message, K_NO_WAIT);
-		k_msgq_put(&track_meta_q, &message, K_NO_WAIT);
-		k_sleep(K_SECONDS(1));
+		static uint32_t sequence;
+		int ret = audio_capture_run();
+
+		if (ret == 0) {
+			struct easnfw_pipeline_message message = {
+				.sequence = sequence++,
+				.kind = EASNFW_MESSAGE_RECORD,
+			};
+			(void)k_msgq_put(&audio_block_q, &message, K_NO_WAIT);
+			(void)k_msgq_put(&track_meta_q, &message, K_NO_WAIT);
+		} else {
+			LOG_ERR("Audio capture failed: %d", ret);
+		}
+		k_sleep(K_SECONDS(840));
 	}
 }
 
