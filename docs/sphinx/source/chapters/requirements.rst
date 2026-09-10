@@ -200,3 +200,19 @@ Every ecoacoustic record shall indicate whether its timestamp is synchronized
 and the source used for synchronization. A record acquired without valid
 absolute time shall retain monotonic timing information and shall not be
 silently assigned an unverified wall-clock timestamp.
+
+REQ-019: OTA Firmware Update
+============================
+
+When an ecoacoustic record has been completely transmitted to the cloud
+platform, EASNFW shall check whether new firmware versions are available on the
+cloud platform and, when one or more newer versions are available, update its
+firmware to the latest available versions after the current audio recording
+cycle.
+
+REQ-020: OTA Firmware Rollback
+==============================
+
+After an OTA firmware update, EASNFW shall roll back to the previously known
+good firmware versions if the loaded firmware image is invalid, unsigned, or
+signed with the wrong key.
