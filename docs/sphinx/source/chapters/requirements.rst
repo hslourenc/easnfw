@@ -242,6 +242,22 @@ EASNFW shall use synchronized ISO 8601 timestamps with UTC offset on
 ecoacoustic records and include information about the source used for
 synchronization on each record.
 
+REQ-019: OTA Firmware Update
+============================
+
+When an ecoacoustic record has been completely transmitted to the cloud
+platform, EASNFW shall check whether new firmware versions are available on the
+cloud platform and, when one or more newer versions are available, update its
+firmware to the latest available versions after the current audio recording
+cycle.
+
+REQ-020: OTA Firmware Rollback
+==============================
+
+After an OTA firmware update, EASNFW shall roll back to the previously known
+good firmware versions if the loaded firmware image is invalid, unsigned, or
+signed with the wrong key.
+
 REQ-021: Bounded Automatic Recovery Resets
 ==========================================
 
@@ -258,4 +274,3 @@ configured recovery condition, if any, is satisfied.
 EASNFW shall clear the recovery-reset counter after completing the self-test
 sequence and ``PARAM_RESET_STABLE_CYCLES`` operating cycles without recurrence
 of the fault.
-

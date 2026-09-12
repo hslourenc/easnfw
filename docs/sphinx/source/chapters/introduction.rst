@@ -46,8 +46,7 @@ EASNFW is subdivided into two components:
   DK and is mainly responsible for transmitting the acquired and processed data
   to the cloud.
 
-EASNFW-SENSOR and EASNFW-CLOUD communicate over SPI, with EASNFW-SENSOR as the
-controller and EASNFW-CLOUD as the peripheral.
+EASNFW-SENSOR and EASNFW-CLOUD communicate over UART.
 
 Product Interfaces
 ------------------
@@ -252,8 +251,8 @@ The record is complete only after all expected audio blocks and metadata have
 been persisted and validated. Complete records are committed atomically to
 mass storage and retained until the cloud platform confirms durable storage.
 
-SPI Transfer Frame
-------------------
+UART Transfer Frame
+-------------------
 
 A versioned and checksummed fragment used to transfer a complete ecoacoustic
 record or another message between EASNFW-SENSOR and EASNFW-CLOUD. A record may
