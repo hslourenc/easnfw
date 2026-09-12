@@ -17,4 +17,4 @@ EASNFW
    chapters/verification
    chapters/architecture
    chapters/design
-
+   chapters/cloud_backend

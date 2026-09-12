@@ -135,8 +135,9 @@ Driver / platform layer
    * - Module
      - Responsibility
    * - ``audio_sensor_drv``
-     - Thin wrapper around the Zephyr driver for the audio sensor
-       (PDM). Used by ``audio_sampling``.
+     - Thin wrapper around the Zephyr driver for the audio sensor. The initial
+       baseline is a 16-bit/48-kHz mono I2S digital microphone. Used by
+       ``audio_sampling``.
    * - ``env_sensor_drv``
      - Thin wrapper around the Zephyr sensor driver for the
        environmental sensor (I2C). Used by ``env_sampling``.
@@ -169,8 +170,9 @@ Application layer
        acknowledgements back to it (REQ-002, REQ-003, REQ-009).
    * - ``payload_assembler``
      - Assembling
-     - Builds cloud-platform-ready payloads from received data
-       (REQ-002, REQ-003, REQ-009).
+     - Reassembles and validates SPI fragments and adds the transport envelope
+       needed by the cloud platform. The canonical record itself is assembled
+       by EASNFW-SENSOR (REQ-002, REQ-003, REQ-009, REQ-014, REQ-015).
    * - ``cloud_tx``
      - Transmitting
      - Transmits payloads to the cloud platform, with retry/backoff on
@@ -301,3 +303,37 @@ Open Items and Assumptions
   transmitted to the cloud platform (REQ-001), which necessarily
   involves both components, are TBD.
 
+Audio Interface Decision
+========================
+
+The initial acquisition baseline is one external I2S digital microphone
+producing 16-bit PCM at 48 kHz directly to the nRF5340. This path does not
+require the CS47L63 hardware audio codec. The codec available on the nRF5340
+Audio DK remains an experimental alternative for analog input or for acoustic
+front ends whose requirements cannot be met by a digital microphone.
+
+The nRF5340's direct PDM peripheral is not the baseline because its hardware
+PCM output is limited to 16 kHz. A PDM microphone may still be evaluated when
+16-kHz acquisition is acceptable or when routed through a separate decimation
+stage such as the CS47L63.
+
+Mass storage is independent from the audio codec. EASNFW-SENSOR accesses the
+Audio DK's SD-card holder using the Zephyr SDHC/filesystem stack over SPI.
+Uncompressed PCM or WAV data can therefore be stored and retrieved without an
+audio codec; compressed formats require a corresponding software encoder or
+decoder.
+
+Power Architecture Considerations
+=================================
+
+The nPM1100 on the nRF5340 Audio DK is a USB-compatible linear Li-ion/Li-Po
+charger and power-path device; it is not a photovoltaic maximum-power-point
+tracking controller. During prototype development, photovoltaic input shall
+therefore be conditioned by an external solar charger/energy harvester and
+presented to the DK as a regulated supply. Direct connection of a solar panel
+to nPM1100 VBUS is not assumed to be supported.
+
+The final power architecture remains an open hardware decision and shall be
+selected from measured system energy per acquisition/transmission cycle,
+panel characteristics, battery chemistry and capacity, required autonomy, and
+LTE-M peak-current behavior.

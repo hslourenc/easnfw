@@ -47,7 +47,7 @@ node "EASN" {
     '/
 }
 
-[EASNFW_SENSOR] <--> [Audio sensor]                  : Protocol TBD
+[EASNFW_SENSOR] <--> [Audio sensor]                  : I2S
 [EASNFW_SENSOR] <--> [Environmental sensor]          : I2C
 [EASNFW_SENSOR] <--> Host_PC                         : USB
 [EASNFW_SENSOR] <--> [Mass storage]                  : SPI
