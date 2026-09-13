@@ -8,7 +8,7 @@ Overview
 EASNFW is built on `Zephyr RTOS <https://zephyrproject.org/>`_ and nRF Connect
 SDK, and is split across its two components, EASNFW-SENSOR and EASNFW-CLOUD,
 each running as its own Zephyr application image on its respective board and
-communicating with one another over SPI.
+communicating with one another over UART.
 
 Within each component, the firmware is organized as a small pipeline of
 Zephyr threads, one per functional stage, connected by Zephyr message
@@ -24,12 +24,14 @@ Design Principles
   storage, transmission, etc.) runs as its own Zephyr thread.
 * Threads communicate through message queues rather than shared global
   state. As a consequence, each shared resource (mass storage, NVS, the
-  SPI link, the LTE-M modem) is only ever accessed by a single, dedicated
+  UART link, the LTE-M modem) is only ever accessed by a single, dedicated
   thread, which avoids the need for additional locking around it.
 * Messages are expected to be small (e.g. buffer handles/pointers and
   metadata) rather than large payloads passed by value, to keep queue
-  memory usage bounded. How sample/payload buffers themselves are
-  allocated and passed between threads is TBD.
+  memory usage bounded. Sample buffers use a fixed-size pool and explicit
+  ownership transfer. A producer must not reuse a buffer until the consumer
+  releases it, and queue exhaustion must result in a reported backpressure or
+  loss condition rather than silent data loss.
 * Self-test (REQ-001 to REQ-004), power management (REQ-012), and logging
   (REQ-013) are cross-cutting concerns and are not modeled as dedicated
   application threads at this stage:
@@ -67,16 +69,17 @@ Threads
      - REQ-006
    * - Storage
      - Sole owner of mass storage and NVS. Persists processed audio
-       blocks and environmental data/timestamps, assembles complete
-       ecoacoustic records, and removes them from mass storage once
-       their transmission has been confirmed. Also stores self-test
+       blocks and environmental data/timestamps, assembles and atomically
+       commits canonical ecoacoustic records, and applies the retention policy
+       once durable cloud delivery has been confirmed. Also stores self-test
        and transmission failure details to NVS.
      - REQ-004, REQ-007, REQ-008, REQ-010, REQ-011
    * - Transmission
-     - Sole owner of the SPI link to EASNFW-CLOUD. Sends the power-on
-       log payload, pending ecoacoustic records, and newly stored
-       ecoacoustic records to EASNFW-CLOUD, and reports delivery
-       outcomes back to the Storage thread.
+     - Sole owner of the UART link to EASNFW-CLOUD. Sends the power-on
+       log, pending ecoacoustic records, and newly committed records to
+       EASNFW-CLOUD using versioned and checksummed fragments. Reports both
+       inter-component receipt and durable cloud-delivery outcomes back to the
+       Storage thread.
      - REQ-002, REQ-003, REQ-009, REQ-011
 
 Message queues
@@ -129,13 +132,14 @@ Threads
      - Responsibility
      - Related requirements
    * - Receiving
-     - Sole owner of the CLOUD-side SPI link. Receives payloads sent by
+     - Sole owner of the CLOUD-side UART link. Receives payloads sent by
        EASNFW-SENSOR and forwards them for assembly. Relays delivery
        acknowledgements back to EASNFW-SENSOR once available.
      - REQ-002, REQ-003, REQ-009
    * - Assembling
-     - Consumes received payload data and assembles/validates it into
-       the format expected by the cloud platform.
+     - Reassembles and validates UART fragments, then wraps the canonical
+       record in the transport envelope expected by the cloud platform. It
+       does not redefine or reconstruct the scientific record.
      - REQ-002, REQ-003, REQ-009
    * - Transmitting
      - Sole owner of the LTE-M link to the cloud platform. Transmits
@@ -158,7 +162,7 @@ Message queues
    * - ``rx_payload_q``
      - Receiving
      - Assembling
-     - Payload data as received from EASNFW-SENSOR over SPI.
+     - Payload data as received from EASNFW-SENSOR over UART.
    * - ``assembled_payload_q``
      - Assembling
      - Transmitting
@@ -172,19 +176,39 @@ Message queues
 Inter-component Communication
 ================================
 
-EASNFW-SENSOR and EASNFW-CLOUD communicate over the SPI link described in
-the system architecture. The link is used in both directions: the
-Transmission thread (SENSOR) sends payloads to the Receiving thread
-(CLOUD), and, once the Transmitting thread (CLOUD) confirms delivery to
-the cloud platform, a corresponding acknowledgement is sent back over the
-same link to the Transmission thread (SENSOR), which reports it to the
-Storage thread via ``tx_ack_q``.
+EASNFW-SENSOR and EASNFW-CLOUD communicate over the UART link described in
+the system architecture. Records may be divided into multiple UART transfer
+frames so no stage needs to hold a complete track in RAM. Each frame includes
+protocol and schema versions, message type, ``record_id``, fragment index and
+count, payload length, and an integrity check.
 
-.. note::
+The link is used in both directions and has two distinct acknowledgement
+levels:
 
-   The exact framing/protocol used over SPI, and the precise point at
-   which an "acknowledgement" is generated (e.g. on receipt by
-   EASNFW-CLOUD vs. on confirmed cloud platform delivery), are TBD.
+* a **link acknowledgement** confirms that EASNFW-CLOUD received and validated
+  a frame; and
+* a **cloud commit acknowledgement** confirms that the cloud platform durably
+  stored the complete record.
+
+Only the cloud commit acknowledgement permits Storage to mark a record as
+delivered. If either component resets or an acknowledgement is lost, the same
+``record_id`` may be retransmitted safely because cloud delivery is idempotent
+(REQ-016).
+
+Data Representations
+====================
+
+The pipeline deliberately uses three separate representations:
+
+* the **canonical ecoacoustic record**, assembled and persisted by
+  EASNFW-SENSOR;
+* the **UART transfer frame**, used only for reliable inter-component
+  fragmentation and transfer; and
+* the **cloud payload**, assembled by EASNFW-CLOUD by adding transport and
+  network metadata to canonical record data.
+
+This separation prevents cloud schema changes from altering the on-device
+scientific data model and keeps HTTP-specific concerns out of EASNFW-SENSOR.
 
 Diagram
 =========
@@ -224,13 +248,13 @@ Diagram
    Storage <--> MassStorage
    Storage <--> NVS
 
-   Storage --> TxSensor : storage_tx_q
-   TxSensor --> Storage : tx_ack_q
+   Storage --> TxSensor : storage_tx_q\nrecord handle
+   TxSensor --> Storage : tx_ack_q\nlink/cloud acknowledgement
 
-   TxSensor <..> Receiving : SPI
+   TxSensor <..> Receiving : versioned UART frames
 
-   Receiving --> Assembling : rx_payload_q
-   Assembling --> TxCloud : assembled_payload_q
+   Receiving --> Assembling : rx_payload_q\nvalidated fragments
+   Assembling --> TxCloud : assembled_payload_q\ncloud envelope
    TxCloud --> Receiving : tx_result_q
 
    TxCloud --> CloudPlatform : LTE-M
@@ -241,9 +265,9 @@ Open Items
 
 * Audio processing algorithm and its threading/timing implications on the
   Sampling/Processing/Storage threads (REQ-006).
-* SPI framing/protocol between EASNFW-SENSOR and EASNFW-CLOUD, including
-  the acknowledgement mechanism.
-* Cloud platform payload format, owned by the Assembling thread.
+* Binary encoding of the canonical record and UART frames (CBOR is the initial
+  candidate).
+* Cloud platform payload envelope and endpoint contract, owned by the
+  Assembling and Transmitting threads.
 * Power management strategy (REQ-012) and its interaction with thread
   scheduling.
-
