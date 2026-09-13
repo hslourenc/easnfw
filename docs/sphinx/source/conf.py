@@ -13,7 +13,7 @@ project = 'EASNFW'
 copyright = '2026, Henrique Sander Lourenço, João Victor Colombari Carlet'
 author = 'Henrique Sander Lourenço, João Victor Colombari Carlet'
 release = 'Pre-alpha v5'
-today = 'August 24, 2026'
+today = 'September 13, 2026'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

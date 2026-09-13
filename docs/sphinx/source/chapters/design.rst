@@ -33,11 +33,11 @@ by both components:
   self-test checks, formatting a cloud payload), independent of which
   thread calls them.
 * **Driver / platform layer** — thin wrappers around Zephyr drivers and
-  subsystems (sensors, SPI, file system, NVS, modem), isolating the rest
+  subsystems (sensors, UART, SPI, file system, NVS, modem), isolating the rest
   of the firmware from hardware and Zephyr API specifics.
 * **Shared layer** — modules used by both EASNFW-SENSOR and
   EASNFW-CLOUD, mainly data structure and protocol definitions that need
-  to stay consistent on both ends of the SPI link.
+  to stay consistent on both ends of the UART link.
 
 Logging (REQ-013) is not modeled as a separate module: each module
 registers its own Zephyr log module (``LOG_MODULE_REGISTER``) and uses
@@ -56,9 +56,9 @@ Shared Modules
    * - Module
      - Layer
      - Responsibility
-   * - ``spi_protocol``
+   * - ``uart_protocol``
      - Shared
-     - Defines the message/frame types exchanged over the SPI link
+     - Defines the message/frame types exchanged over the UART link
        (payload transfer, delivery acknowledgements) and their
        (de)serialization. Used by ``cloud_link`` and ``sensor_link``.
    * - ``ecoacoustic_record``
@@ -135,8 +135,9 @@ Driver / platform layer
    * - Module
      - Responsibility
    * - ``audio_sensor_drv``
-     - Thin wrapper around the Zephyr driver for the audio sensor
-       (PDM). Used by ``audio_sampling``.
+     - Thin wrapper around the Zephyr driver for the audio sensor. The initial
+       baseline is a 16-bit/48-kHz mono I2S digital microphone. Used by
+       ``audio_sampling``.
    * - ``env_sensor_drv``
      - Thin wrapper around the Zephyr sensor driver for the
        environmental sensor (I2C). Used by ``env_sampling``.
@@ -146,9 +147,9 @@ Driver / platform layer
    * - ``nvs``
      - Wraps Zephyr's NVS subsystem. Used by ``storage`` and
        ``selftest``.
-   * - ``spi_transport``
-     - Low-level SPI send/receive and framing, used together with
-       ``spi_protocol``. Used by ``cloud_link``.
+   * - ``uart_transport``
+     - Low-level UART send/receive and framing, used together with
+       ``uart_protocol``. Used by ``cloud_link``.
 
 EASNFW-CLOUD Modules
 =======================
@@ -165,12 +166,13 @@ Application layer
      - Responsibility
    * - ``sensor_link``
      - Receiving
-     - Receives payloads from EASNFW-SENSOR over SPI and relays delivery
+     - Receives payloads from EASNFW-SENSOR over UART and relays delivery
        acknowledgements back to it (REQ-002, REQ-003, REQ-009).
    * - ``payload_assembler``
      - Assembling
-     - Builds cloud-platform-ready payloads from received data
-       (REQ-002, REQ-003, REQ-009).
+     - Reassembles and validates UART fragments and adds the transport envelope
+       needed by the cloud platform. The canonical record itself is assembled
+       by EASNFW-SENSOR (REQ-002, REQ-003, REQ-009, REQ-014, REQ-015).
    * - ``cloud_tx``
      - Transmitting
      - Transmits payloads to the cloud platform, with retry/backoff on
@@ -198,9 +200,9 @@ Driver / platform layer
 
    * - Module
      - Responsibility
-   * - ``spi_transport``
-     - Low-level SPI send/receive and framing, used together with
-       ``spi_protocol``. Used by ``sensor_link``.
+   * - ``uart_transport``
+     - Low-level UART send/receive and framing, used together with
+       ``uart_protocol``. Used by ``sensor_link``.
    * - ``http_client``
      - Handles request/response exchanges with the cloud platform. Used
        by ``cloud_tx``.
@@ -218,7 +220,7 @@ Diagram
    skinparam backgroundColor transparent
 
    package "Shared" {
-     [spi_protocol] as SpiProto
+     [uart_protocol] as UartProto
      [ecoacoustic_record] as Record
      [retry] as Retry
    }
@@ -241,7 +243,7 @@ Diagram
        [env_sensor_drv] as EnvDrv
        [mass_storage] as MassStorage
        [nvs] as Nvs
-       [spi_transport] as SpiTransportS
+       [uart_transport] as UartTransportS
      }
    }
 
@@ -255,7 +257,7 @@ Diagram
        [payload_format] as PayloadFormat
      }
      package "Driver / Platform" as CloudDriver {
-       [spi_transport] as SpiTransportC
+       [uart_transport] as UartTransportC
        [http_client] as HttpClient
        [lte_m] as LteM
      }
@@ -273,24 +275,24 @@ Diagram
    Selftest --> Nvs
    Selftest --> MassStorage
    Selftest --> CloudLink
-   CloudLink --> SpiTransportS
-   CloudLink --> SpiProto
+   CloudLink --> UartTransportS
+   CloudLink --> UartProto
    CloudLink --> Record
 
-   SensorLink --> SpiTransportC
-   SensorLink --> SpiProto
+   SensorLink --> UartTransportC
+   SensorLink --> UartProto
    Assembler --> PayloadFormat
    Assembler --> Record
    CloudTx --> HttpClient
    CloudTx --> Retry
-   CloudTx --> SpiProto
+   CloudTx --> UartProto
    HttpClient --> LteM
    @enduml
 
 Open Items and Assumptions
 =============================
 
-* ``spi_protocol`` and ``payload_format`` details are not yet defined.
+* ``uart_protocol`` and ``payload_format`` details are not yet defined.
 * Only EASNFW-SENSOR is assumed to own persistent storage for failure
   details (``nvs``), consistent with the system architecture, where
   EASNFW-CLOUD's backup storage is still TBD. If EASNFW-CLOUD gains its
@@ -301,3 +303,37 @@ Open Items and Assumptions
   transmitted to the cloud platform (REQ-001), which necessarily
   involves both components, are TBD.
 
+Audio Interface Decision
+========================
+
+The initial acquisition baseline is one external I2S digital microphone
+producing 16-bit PCM at 48 kHz directly to the nRF5340. This path does not
+require the CS47L63 hardware audio codec. The codec available on the nRF5340
+Audio DK remains an experimental alternative for analog input or for acoustic
+front ends whose requirements cannot be met by a digital microphone.
+
+The nRF5340's direct PDM peripheral is not the baseline because its hardware
+PCM output is limited to 16 kHz. A PDM microphone may still be evaluated when
+16-kHz acquisition is acceptable or when routed through a separate decimation
+stage such as the CS47L63.
+
+Mass storage is independent from the audio codec. EASNFW-SENSOR accesses the
+Audio DK's SD-card holder using the Zephyr SDHC/filesystem stack over SPI.
+Uncompressed PCM or WAV data can therefore be stored and retrieved without an
+audio codec; compressed formats require a corresponding software encoder or
+decoder.
+
+Power Architecture Considerations
+=================================
+
+The nPM1100 on the nRF5340 Audio DK is a USB-compatible linear Li-ion/Li-Po
+charger and power-path device; it is not a photovoltaic maximum-power-point
+tracking controller. During prototype development, photovoltaic input shall
+therefore be conditioned by an external solar charger/energy harvester and
+presented to the DK as a regulated supply. Direct connection of a solar panel
+to nPM1100 VBUS is not assumed to be supported.
+
+The final power architecture remains an open hardware decision and shall be
+selected from measured system energy per acquisition/transmission cycle,
+panel characteristics, battery chemistry and capacity, required autonomy, and
+LTE-M peak-current behavior.
