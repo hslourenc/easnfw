@@ -31,7 +31,7 @@ Design Principles
   memory usage bounded. Sample buffers use a fixed-size pool and explicit
   ownership transfer. A producer must not reuse a buffer until the consumer
   releases it, and queue exhaustion must result in a reported backpressure or
-  loss condition rather than silent data loss (REQ-017).
+  loss condition rather than silent data loss.
 * Self-test (REQ-001 to REQ-004), power management (REQ-012), and logging
   (REQ-013) are cross-cutting concerns and are not modeled as dedicated
   application threads at this stage:

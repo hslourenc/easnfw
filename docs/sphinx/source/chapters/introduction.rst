@@ -63,14 +63,14 @@ responses without requiring an inbound connection to the sensing node.
 USB Interfaces for Host Personal Computers (PCs)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-EASNFW uses the USB interfaces of the nRF5340 Audio DK and nRF9151 SMA DK to 
-ommunicate with host personal computers (PCs) for testing and debugging.
+EASNFW uses the USB interfaces of the nRF5340 Audio DK and nRF9151 SMA DK to
+communicate with host personal computers (PCs) for testing and debugging.
 
 USB Command Line Interface (CLI)
 """"""""""""""""""""""""""""""""
 
 EASNFW-SENSOR provides a command line interface (CLI) for executing test cases,
-verifying data acquisition and processing funcionalities, and quickly
+verifying data acquisition and processing functionalities, and quickly
 experimenting with different implementation approaches. This interface is
 enabled only in the HIL verification image (see :ref:`section_fw_images`).
 

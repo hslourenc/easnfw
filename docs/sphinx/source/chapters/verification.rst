@@ -383,19 +383,21 @@ TC-021: Self-test failures are classified
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Objective:** Verify that self-test failures are classified as acquisition-
-blocking, transmission-blocking, or non-blocking and produce the corresponding
-system behavior.
+blocking, transient transmission-blocking, permanent transmission-blocking, or
+non-blocking and produce the corresponding system behavior.
 
 **Procedure:**
 
-1. In separate runs, fault the audio sensor, cloud connectivity, and a
-   non-essential diagnostic function.
+1. In separate runs, fault the audio sensor, a temporarily unavailable cloud
+   connection, a permanently unavailable transmission path, and a non-essential
+   diagnostic function.
 2. Trigger the full self-test sequence and observe the reported classification
    and subsequent acquisition/transmission behavior.
 
-**Expected result:** The audio-sensor fault prevents normal acquisition; the
-connectivity fault preserves local acquisition and storage while deferring
-transmission; and the non-blocking fault is reported without preventing either
+**Expected result:** The audio-sensor fault is acquisition-blocking; the
+temporary connectivity fault preserves local acquisition and storage while
+deferring transmission; the permanent transmission fault enters a degraded
+state; and the non-blocking fault is reported without preventing either
 available function. None produces an unbounded reset loop.
 
 TC-022: Failed-checks storage is skipped when NVS itself is faulty
@@ -622,7 +624,7 @@ platform once all of its data is stored in mass storage.
 payloads as needed. The server validates and durably commits the complete
 ``record_id`` before returning a cloud commit acknowledgement.
 
-REQ-010: Ecoacoustic Data Removal from Mass Storage
+REQ-010: Ecoacoustic Data Retention and Removal
 ---------------------------------------------------
 
 TC-034: Record marked delivered only after durable cloud acknowledgement
@@ -645,6 +647,13 @@ by the configured retention policy.
 Cloud commit marks it delivered. Removal occurs only when the retention policy
 permits it.
 
+The test shall be repeated with a retention count greater than zero and with a
+retention count of zero. When the delivered-record count exceeds the configured
+limit, the oldest delivered records are removed first. With a zero limit, each
+record is removed after it is marked delivered. When the high-watermark
+threshold is reached, delivered records are removed until the low-watermark
+threshold is reached; undelivered records remain untouched.
+
 TC-035: Record retained in mass storage when transmission fails
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -663,14 +672,14 @@ while its transmission has not yet succeeded.
 REQ-011: Payload Transmission Error Handling
 --------------------------------------------
 
-TC-036: Failed transmission is retried
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-036: Transient transmission failure is retried
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Objective:** Verify that a failed payload transmission is retried.
+**Objective:** Verify that a transient payload transmission failure is retried.
 
 **Procedure:**
 
-1. Disable cloud connectivity.
+1. Introduce a transient cloud connectivity failure.
 2. Trigger transmission of any payload (e.g. a pending ecoacoustic
    record).
 3. Monitor the USB log for retry attempts.
@@ -678,22 +687,25 @@ TC-036: Failed transmission is retried
 **Expected result:** At least one retry attempt is observed following the
 initial failure.
 
-TC-037: Retries follow exponential backoff with base 2
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-037: Retries follow bounded exponential backoff with jitter
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Objective:** Verify that the time interval between successive retries
-follows :math:`t[s]=2^c`, where ``c`` is the retry count, per the
-"exponential backoff with base 2" description.
+**Objective:** Verify that the time interval between successive retries falls
+within the configured jitter range, where ``c`` is the retry count, per the
+bounded exponential backoff description.
 
 **Procedure:**
 
-1. Disable cloud connectivity.
+1. Introduce a transient cloud connectivity failure.
 2. Trigger transmission of a payload.
 3. Record the timestamps of the initial attempt and each subsequent retry
    from the USB log.
 
-**Expected result:** The interval before retry ``c`` is
-:math:`2^c` seconds (within timing tolerance), for c = 1, 2, 3, ...
+**Expected result:** For retry count ``c`` starting at zero, the interval before
+each retry is uniformly selected from
+:math:`[(3/4) \mathop{\mathrm{min}}(PARAM\_MAX\_RETRY\_DELAY, 2^c),
+\mathop{\mathrm{min}}(PARAM\_MAX\_RETRY\_DELAY, 2^c)]` seconds, within timing
+tolerance.
 
 TC-038: Retry count does not exceed the configured maximum
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -825,8 +837,8 @@ TC-045: Retransmission does not duplicate a cloud record
 storage acknowledgement for the repeated ``record_id``, and the local record
 is subsequently marked delivered.
 
-REQ-017: Intermediate Buffer Ownership
---------------------------------------
+Buffer Ownership and Backpressure
+---------------------------------
 
 TC-046: Slow processing applies the defined backpressure policy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -955,6 +967,37 @@ TC-054: Firmware image signed with the wrong key triggers rollback
 **Expected result:** The image signed with the wrong key is rejected; EASNFW
 rolls back to the previously known good versions and records the key-validation
 failure.
+
+REQ-021: Bounded Automatic Recovery Resets
+------------------------------------------
+
+TC-055: Recovery resets are bounded and persisted
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Procedure:**
+
+1. Configure small test values for ``PARAM_MAX_RECOVERY_RESETS`` and
+   ``PARAM_RECOVERY_RESET_WINDOW``.
+2. Inject a fault classified as recoverable by reset and reboot the node
+   repeatedly within the configured window.
+3. Inspect the recovery-reset counter and system state after each reboot.
+
+**Expected result:** The fault is recorded before each reset, the counter
+survives reboot, and the node enters a degraded state instead of requesting
+another automatic reset after the configured limit is reached.
+
+TC-056: Recovery-reset counter clears after stable operation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Procedure:**
+
+1. Recover from a reset-classified fault and complete the self-test sequence.
+2. Run the configured number of stable operating cycles without recurrence.
+3. Inject the same fault after the stable cycles and inspect the counter.
+
+**Expected result:** The recovery-reset counter is cleared after
+``PARAM_RESET_STABLE_CYCLES`` fault-free operating cycles, and a subsequent
+recoverable fault starts a new recovery sequence.
 
 Known Gaps
 ==========

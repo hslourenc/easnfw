@@ -41,10 +41,10 @@ checks fails, EASNFW shall store the failed checks and classify the failure as
 acquisition-blocking, transient transmission-blocking, permanent
 transmission-blocking, or non-blocking.
 
-If none the detected faults prevent EASNFW from writing to NVS, EASNFW shall
+If none of the detected faults prevent EASNFW from writing to NVS, EASNFW shall
 store failure details in NVS.
 
-If any of identified failures is acquisition-blocking or permanent
+If any of the identified failures is acquisition-blocking or permanent
 transmission-blocking, EASNFW shall reset if the failure is recoverable by
 reset (see :ref:`section_req_reset_policy`) or enter a degraded state otherwise.
 
@@ -190,10 +190,11 @@ REQ-012: Save Energy While Idle
 While EASNFW is idle, EASNFW shall enter an energy-saving state.
 
 In the HIL verification image, EASNFW shall expose test cases or commands to
-execute specific tasks or code paths isolated from revolving logic, to allow
-for the measurement of the energy consumed by each of them separately. Target
-tasks / code paths: data acquisition (acquisition of a full audio track and one
-sample of each monitored environmental variable), audio processing, data
+execute specific tasks or code paths isolated from normal application logic, to
+allow for the measurement of the energy consumed by each of them separately.
+The target tasks and code paths are: data acquisition (acquisition of a full
+audio track and one sample of each monitored environmental variable), audio
+processing, data
 storage to mass storage (storage of a processed audio track and one sample of
 each monitored environmental variable), and transmission cycle (sampling,
 processing, storing and transmitting one ecoacoustic record to the cloud
