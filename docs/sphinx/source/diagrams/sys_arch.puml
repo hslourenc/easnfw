@@ -52,7 +52,7 @@ node "EASN" {
 [EASNFW_SENSOR] <--> Host_PC                         : USB
 [EASNFW_SENSOR] <--> [Mass storage]                  : SPI
 [EASNFW_SENSOR] <--> [NVS]                           : Memory-mapped
-[EASNFW_SENSOR] <--> [EASNFW_CLOUD]                  : SPI
+[EASNFW_SENSOR] <--> [EASNFW_CLOUD]                  : UART
 [EASNFW_CLOUD]  <--> Cloud                           : HTTPS over LTE-M
 [EASNFW_CLOUD]   --> Host_PC                         : USB
 ' [EASNFW_CLOUD]  <--> [Backup storage]        : SPI

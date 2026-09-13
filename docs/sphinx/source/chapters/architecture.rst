@@ -8,7 +8,7 @@ Overview
 EASNFW is built on `Zephyr RTOS <https://zephyrproject.org/>`_ and nRF Connect
 SDK, and is split across its two components, EASNFW-SENSOR and EASNFW-CLOUD,
 each running as its own Zephyr application image on its respective board and
-communicating with one another over SPI.
+communicating with one another over UART.
 
 Within each component, the firmware is organized as a small pipeline of
 Zephyr threads, one per functional stage, connected by Zephyr message
@@ -24,7 +24,7 @@ Design Principles
   storage, transmission, etc.) runs as its own Zephyr thread.
 * Threads communicate through message queues rather than shared global
   state. As a consequence, each shared resource (mass storage, NVS, the
-  SPI link, the LTE-M modem) is only ever accessed by a single, dedicated
+  UART link, the LTE-M modem) is only ever accessed by a single, dedicated
   thread, which avoids the need for additional locking around it.
 * Messages are expected to be small (e.g. buffer handles/pointers and
   metadata) rather than large payloads passed by value, to keep queue
@@ -75,7 +75,7 @@ Threads
        and transmission failure details to NVS.
      - REQ-004, REQ-007, REQ-008, REQ-010, REQ-011
    * - Transmission
-     - Sole owner of the SPI link to EASNFW-CLOUD. Sends the power-on
+     - Sole owner of the UART link to EASNFW-CLOUD. Sends the power-on
        log, pending ecoacoustic records, and newly committed records to
        EASNFW-CLOUD using versioned and checksummed fragments. Reports both
        inter-component receipt and durable cloud-delivery outcomes back to the
@@ -132,12 +132,12 @@ Threads
      - Responsibility
      - Related requirements
    * - Receiving
-     - Sole owner of the CLOUD-side SPI link. Receives payloads sent by
+     - Sole owner of the CLOUD-side UART link. Receives payloads sent by
        EASNFW-SENSOR and forwards them for assembly. Relays delivery
        acknowledgements back to EASNFW-SENSOR once available.
      - REQ-002, REQ-003, REQ-009
    * - Assembling
-     - Reassembles and validates SPI fragments, then wraps the canonical
+     - Reassembles and validates UART fragments, then wraps the canonical
        record in the transport envelope expected by the cloud platform. It
        does not redefine or reconstruct the scientific record.
      - REQ-002, REQ-003, REQ-009
@@ -162,7 +162,7 @@ Message queues
    * - ``rx_payload_q``
      - Receiving
      - Assembling
-     - Payload data as received from EASNFW-SENSOR over SPI.
+     - Payload data as received from EASNFW-SENSOR over UART.
    * - ``assembled_payload_q``
      - Assembling
      - Transmitting
@@ -176,8 +176,8 @@ Message queues
 Inter-component Communication
 ================================
 
-EASNFW-SENSOR and EASNFW-CLOUD communicate over the SPI link described in
-the system architecture. Records may be divided into multiple SPI transfer
+EASNFW-SENSOR and EASNFW-CLOUD communicate over the UART link described in
+the system architecture. Records may be divided into multiple UART transfer
 frames so no stage needs to hold a complete track in RAM. Each frame includes
 protocol and schema versions, message type, ``record_id``, fragment index and
 count, payload length, and an integrity check.
@@ -202,7 +202,7 @@ The pipeline deliberately uses three separate representations:
 
 * the **canonical ecoacoustic record**, assembled and persisted by
   EASNFW-SENSOR;
-* the **SPI transfer frame**, used only for reliable inter-component
+* the **UART transfer frame**, used only for reliable inter-component
   fragmentation and transfer; and
 * the **cloud payload**, assembled by EASNFW-CLOUD by adding transport and
   network metadata to canonical record data.
@@ -251,7 +251,7 @@ Diagram
    Storage --> TxSensor : storage_tx_q\nrecord handle
    TxSensor --> Storage : tx_ack_q\nlink/cloud acknowledgement
 
-   TxSensor <..> Receiving : versioned SPI frames
+   TxSensor <..> Receiving : versioned UART frames
 
    Receiving --> Assembling : rx_payload_q\nvalidated fragments
    Assembling --> TxCloud : assembled_payload_q\ncloud envelope
@@ -265,7 +265,7 @@ Open Items
 
 * Audio processing algorithm and its threading/timing implications on the
   Sampling/Processing/Storage threads (REQ-006).
-* Binary encoding of the canonical record and SPI frames (CBOR is the initial
+* Binary encoding of the canonical record and UART frames (CBOR is the initial
   candidate).
 * Cloud platform payload envelope and endpoint contract, owned by the
   Assembling and Transmitting threads.

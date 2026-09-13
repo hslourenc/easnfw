@@ -151,9 +151,9 @@ TC-009: EASNFW-SENSOR/EASNFW-CLOUD communication check succeeds
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Objective:** Verify that the inter-component communication check reports
-success when the SPI link between EASNFW-SENSOR and EASNFW-CLOUD is functional.
+success when the UART link between EASNFW-SENSOR and EASNFW-CLOUD is functional.
 
-**Preconditions:** Both boards are connected via SPI and are in a known-good
+**Preconditions:** Both boards are connected via UART and are in a known-good
 state.
 
 **Procedure:**
@@ -161,23 +161,23 @@ state.
 1. Trigger the inter-component communication check of the self-test sequence.
 2. Observe the returned result and the USB log output.
 
-**Expected result:** The check reports success after communication over the SPI
+**Expected result:** The check reports success after communication over the UART
 link completed successfully.
 
 TC-010: EASNFW-SENSOR/EASNFW-CLOUD communication check reports failure
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Objective:** Verify that the communication check reports failure when
-the SPI link is unavailable.
+the UART link is unavailable.
 
 **Procedure:**
 
-1. Disconnect the SPI link between the two boards or power off EASNFW-CLOUD.
+1. Disconnect the UART link between the two boards or power off EASNFW-CLOUD.
 2. Trigger the inter-component communication check of the self-test sequence.
 3. Observe the returned result and the USB log output.
 
 **Expected result:** The check reports failure because communication over the
-SPI link could not be completed.
+UART link could not be completed.
 
 TC-011: Cloud platform transmission check succeeds
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -284,7 +284,7 @@ communication check).
 
 **Procedure:**
 
-1. Fault the SPI link between EASNFW-SENSOR and EASNFW-CLOUD (or disable
+1. Fault the UART link between EASNFW-SENSOR and EASNFW-CLOUD (or disable
    LTE-M connectivity).
 2. Trigger the full self-test sequence.
 3. Observe the returned result and USB log output.
@@ -422,7 +422,7 @@ be skipped does not reset the device or prevent locally supported acquisition.
 
 **Procedure:**
 
-1. Fault the SPI link between EASNFW-SENSOR and EASNFW-CLOUD.
+1. Fault the UART link between EASNFW-SENSOR and EASNFW-CLOUD.
 2. Trigger the self-test sequence and observe the USB log.
 
 **Expected result:** The power-on log payload transmission is skipped, the
@@ -791,7 +791,7 @@ REQ-015: Inter-component Transfer Integrity
 TC-043: Multi-frame record is reassembled correctly
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Procedure:** Transfer a record larger than one SPI frame and compare the
+**Procedure:** Transfer a record larger than one UART frame and compare the
 reassembled bytes and metadata on EASNFW-CLOUD with the committed source
 record.
 
@@ -799,8 +799,8 @@ record.
 the reassembled record is byte-for-byte equivalent to the source, and every
 fragment receives a link acknowledgement.
 
-TC-044: Corrupted or missing SPI fragment is rejected
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-044: Corrupted or missing UART fragment is rejected
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Procedure:** Inject, in separate runs, a corrupted CRC, a missing fragment,
 an out-of-order fragment, and an unsupported protocol version.
@@ -861,6 +861,100 @@ acquire one record, then restore time synchronization and acquire another.
 **Expected result:** The first record contains monotonic timing and an invalid
 or unsynchronized wall-clock flag. The second contains a synchronized timestamp
 and identifies its synchronization source.
+
+REQ-019: OTA Firmware Update
+----------------------------
+
+TC-049: Firmware availability is checked after complete record transmission
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Objective:** Verify that EASNFW checks the cloud platform for firmware
+versions only after an ecoacoustic record has been completely transmitted and
+then defers the firmware update itself until the current audio recording cycle
+has ended.
+
+**Procedure:**
+
+1. Configure the cloud platform to report a newer firmware version.
+2. Acquire and completely transmit one ecoacoustic record.
+3. Monitor the cloud requests, audio-cycle state, and firmware version.
+
+**Expected result:** The firmware-availability check occurs after complete
+record transmission, without waiting for the current recording cycle to end.
+The latest available firmware versions are scheduled for update, and the
+update is performed only after the current recording cycle ends; the active
+recording is not interrupted.
+
+TC-050: No firmware update is attempted when no newer version is available
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Procedure:**
+
+1. Configure the cloud platform to report no firmware version newer than the
+   versions currently installed.
+2. Completely transmit an ecoacoustic record.
+3. Inspect cloud requests, the firmware version, and the next recording cycle.
+
+**Expected result:** EASNFW performs the availability check, does not download
+or install firmware, and starts the next recording cycle normally.
+
+TC-051: Latest available firmware version is installed
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Procedure:**
+
+1. Configure the cloud platform with multiple valid, newer firmware versions.
+2. Completely transmit an ecoacoustic record and allow the current recording
+   cycle to end.
+3. Inspect the installed EASNFW-SENSOR and EASNFW-CLOUD versions after reboot.
+
+**Expected result:** EASNFW installs the latest available compatible versions
+of both components and reports those versions in the next power-on log.
+
+REQ-020: OTA Firmware Rollback
+------------------------------
+
+TC-052: Invalid firmware image triggers rollback
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Procedure:**
+
+1. Configure the cloud platform to provide an invalid firmware image.
+2. Complete an ecoacoustic record transmission and allow the OTA update to
+   proceed.
+3. Reboot the node and inspect the boot result and firmware versions.
+
+**Expected result:** The invalid image is not activated; EASNFW rolls back to
+the previously known good versions and records the rollback reason.
+
+TC-053: Unsigned firmware image triggers rollback
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Procedure:**
+
+1. Configure the cloud platform to provide an otherwise valid but unsigned
+   firmware image.
+2. Complete an ecoacoustic record transmission and allow the OTA update to
+   proceed.
+3. Reboot the node and inspect the boot result and firmware versions.
+
+**Expected result:** The unsigned image is rejected; EASNFW rolls back to the
+previously known good versions and records the signature-validation failure.
+
+TC-054: Firmware image signed with the wrong key triggers rollback
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Procedure:**
+
+1. Configure the cloud platform to provide an image signed with a key not
+   trusted by EASNFW.
+2. Complete an ecoacoustic record transmission and allow the OTA update to
+   proceed.
+3. Reboot the node and inspect the boot result and firmware versions.
+
+**Expected result:** The image signed with the wrong key is rejected; EASNFW
+rolls back to the previously known good versions and records the key-validation
+failure.
 
 Known Gaps
 ==========
