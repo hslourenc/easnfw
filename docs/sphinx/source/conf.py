@@ -12,7 +12,7 @@ import os
 project = 'EASNFW'
 copyright = '2026, Henrique Sander Lourenço, João Victor Colombari Carlet'
 author = 'Henrique Sander Lourenço, João Victor Colombari Carlet'
-release = 'Pre-alpha v4'
+release = 'Pre-alpha v5'
 today = 'August 24, 2026'
 
 # -- General configuration ---------------------------------------------------
