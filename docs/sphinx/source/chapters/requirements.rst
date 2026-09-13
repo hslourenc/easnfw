@@ -35,19 +35,21 @@ schedule.
 REQ-004: Self-test Sequence Failure
 ===================================
 
-After the power-on log payload transmission step, whether the payload
-transmission has happened or been skipped, if any of the self-test sequence
+After the power-on log payload transmission step (whether the payload
+transmission has happened or been skipped), if any of the self-test sequence
 checks fails, EASNFW shall store the failed checks and classify the failure as
 acquisition-blocking, transient transmission-blocking, permanent
 transmission-blocking, or non-blocking.
 
-Failed checks storage to NVS is conditioned to the self-test sequence failed
-checks not impacting EASNFW's ability to do it. A transmission-blocking failure
-shall not cause a reset and shall not prevent acquisition when local sensing
-and storage remain operational. An acquisition-blocking failure shall prevent
-normal acquisition and place the affected component in a diagnosable safe or
-degraded state. For faults classified as recoverable by reset, EASNFW shall
-apply the bounded automatic recovery policy defined in REQ-021.
+If none the detected faults prevent EASNFW from writing to NVS, EASNFW shall
+store failure details in NVS.
+
+If any of identified failures is acquisition-blocking or permanent
+transmission-blocking, EASNFW shall reset if the failure is recoverable by
+reset (see :ref:`section_req_reset_policy`) or enter a degraded state otherwise.
+
+For faults classified as recoverable by reset, EASNFW
+shall apply the bounded automatic recovery policy defined in REQ-021.
 
 REQ-005: Audio and Environmental Data Sampling
 ==============================================
@@ -241,6 +243,8 @@ REQ-018: Time Validity
 EASNFW shall use synchronized ISO 8601 timestamps with UTC offset on
 ecoacoustic records and include information about the source used for
 synchronization on each record.
+
+.. _section_req_reset_policy:
 
 REQ-021: Bounded Automatic Recovery Resets
 ==========================================
