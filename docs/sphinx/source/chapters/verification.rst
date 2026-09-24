@@ -2,6 +2,86 @@
 Verification
 ************
 
+The verification set-up consists in a client CLI denominated CLI_C, that runs
+on a PC, interfacing through USB with a host CLI denominated CLI_H, running on
+EASN, specifically on nRF5340 Audio DK. CLI_C translates each user command into
+one or more commands to CLI_H, parses CLI_H responses, performs additional
+checks if needed, and prints the result to the user. For convenience, the
+commands issued by the user to CLI_C are denominates primary commands, and the
+commands issued by CLI_C to CLI_H are denominated secondary commands.
+
+Primary commands format: `easncli [command] [options] [arguments]`
+
+Supported primary commands:
+
+* `easncli tc [options] [test-case-number]`: executes test case
+  TC-`test-case-number` and returns a verdict that is: `0` if the test case
+  passes, `1` if it fails, or `2` if further verification is needed to confirm
+  the verdict (e.g. if the audio data needs to be analyzed by an external tool
+  to check if it was sampled with the expected parameters, or if there is
+  anything that needs to be checked on the cloud platform). In addition to a
+  result, this command returns the evidence for the provided verdict, the
+  relevant logs from CLI_H, the relevant logs from EASNFW, and, when
+  applicable, additional data from CLI_H (e.g. the recorded or processed audio
+  as an appropriate file format). All this is organized in a new directory
+  relative to that specific run of the test case as follows:
+
+   .. code-block::
+
+      tc-[test-case-number]-[timestamp]/
+      |
+      |__result.json (summary of the results: verdict, evidence
+      |               and paths to any created data files)
+      |
+      |__clih.log (CLI_H logs)
+      |
+      |__easnfw.log (EASNFW logs)
+      |
+      |__data/ (additional data, optional)
+         |
+         |__audio/
+            |
+            |__audio_raw.wav (raw audio track)
+            |
+            |__audio_processed.wav (processed audio track)
+         |
+         |__mem_dump/ (only for NVS dump for now)
+         |
+         ...
+  
+  `options`:
+
+   * `--treat-further-verif-as-pass [further-verification-cases]`
+
+
+* `easncli tc [options] full`: executes the full suite of test cases and returns:
+   
+   * a verdict that is `1` if at least one test case returned a verdict of `1`,
+     `2` if no test case returned a verdict of `1` and at least one test case
+     returned a verdict of `2`, or `0` if all test cases returned a verdict of
+     `0`.
+   * a list of the failed test cases, if any; and
+   * a list of the test cases whose verdict needs to be further verified, if
+     any.
+
+  The results are organized in a similar fashion as for the single-test-case
+  commands:
+
+   .. code-block::
+
+      tc-full-[timestamp]/
+      |
+      |__result.json (summary of the results: verdict, list of failed test cases
+                        and list of test cases to be further verified)
+      |
+      |__tc-000/ (results for TC-000, as in the single-test-case command)
+      |
+      |__tc-001/
+      |
+      ...
+
+
+
 HIL Verification Image Test Cases
 =================================
 
