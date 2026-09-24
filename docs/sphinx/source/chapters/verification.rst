@@ -10,51 +10,77 @@ checks if needed, and prints the result to the user. For convenience, the
 commands issued by the user to CLI_C are denominates primary commands, and the
 commands issued by CLI_C to CLI_H are denominated secondary commands.
 
-Primary commands format: `easncli [command] [options] [arguments]`
+Primary Commands
+================
 
-Supported primary commands:
+**Primary commands format**: `easncli <command> [options] [arguments]`
 
-* `easncli tc [options] [test-case-number]`: executes test case
-  TC-`test-case-number` and returns a verdict that is: `0` if the test case
-  passes, `1` if it fails, or `2` if further verification is needed to confirm
-  the verdict (e.g. if the audio data needs to be analyzed by an external tool
+The supported primary commands are detailed below.
+
+easncli tc [options] <test-case-number>
+=======================================
+
+Description
+-----------
+
+Executes the test case specified by `test-case-number`.
+
+Arguments
+---------
+
+* `test-case-number`: number of the test case to be executed (e.g. `eascncli tc
+  1` executes TC-001).
+
+Output
+------
+
+The main results of the test case are returned in the JSON file `results.json`
+with the following content:
+
+* `passed`: `true` if the test case passes, `false` otherwise.
+* `need_further_verif`: `true` if the the test case results needs further
+  verification (e.g. if the audio data needs to be analyzed by an external tool
   to check if it was sampled with the expected parameters, or if there is
-  anything that needs to be checked on the cloud platform). In addition to a
-  result, this command returns the evidence for the provided verdict, the
-  relevant logs from CLI_H, the relevant logs from EASNFW, and, when
-  applicable, additional data from CLI_H (e.g. the recorded or processed audio
-  as an appropriate file format). All this is organized in a new directory
-  relative to that specific run of the test case as follows:
+  anything that needs to be checked on the cloud platform), `false` otherwise.
+* `further_verif_type`: string that indicates how the test case results are
+  supposed to be further verified if `need_further_verif` is `true`, `null`
+  otherwise.
+* `evidence`: evidence supporting the verdict of whether the test case passed
+  or not (e.g. logs from CLI_H or EASNFW).
+* `data`: list of strings indicating the path to the any additional files
+  created (e.g. path to the file of the raw audio track).
 
-   .. code-block::
+The contents of `results.json` are printed to the terminal.
 
-      tc-[test-case-number]-[timestamp]/
+The results of the test case are organized within a new directory relative to
+where the command was run. This new directory is structured as follows:
+
+.. code-block::
+
+   tc-[test-case-number]-[timestamp]/
+   |
+   |__result.json (summary of the results: verdict, evidence
+   |               and paths to any created data files)
+   |
+   |__clih.log (CLI_H logs)
+   |
+   |__easnfw.log (EASNFW logs)
+   |
+   |__data/ (additional data, optional)
       |
-      |__result.json (summary of the results: verdict, evidence
-      |               and paths to any created data files)
-      |
-      |__clih.log (CLI_H logs)
-      |
-      |__easnfw.log (EASNFW logs)
-      |
-      |__data/ (additional data, optional)
+      |__audio/
          |
-         |__audio/
-            |
-            |__audio_raw.wav (raw audio track)
-            |
-            |__audio_processed.wav (processed audio track)
+         |__audio_raw.wav (raw audio track)
          |
-         |__mem_dump/ (only for NVS dump for now)
-         |
-         ...
-  
-  `options`:
-
-   * `--treat-further-verif-as-pass [further-verification-cases]`
+         |__audio_processed.wav (processed audio track)
+      |
+      |__mem_dump/ (only for NVS dump for now)
+      |
+      ...
 
 
-* `easncli tc [options] full`: executes the full suite of test cases and returns:
+* `easncli tcfull [options]`: executes the full suite of test cases and
+  returns:
    
    * a verdict that is `1` if at least one test case returned a verdict of `1`,
      `2` if no test case returned a verdict of `1` and at least one test case
@@ -80,7 +106,11 @@ Supported primary commands:
       |
       ...
 
+Options
+-------
 
+* `--treat-further-verif-as-fail`: treat a result where further verification is
+  needed as a failed test case, it is treated as a passed test case by default. 
 
 HIL Verification Image Test Cases
 =================================
