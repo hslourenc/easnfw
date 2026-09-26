@@ -70,6 +70,10 @@ Shared Modules
      - Shared
      - Generic exponential backoff/retry utility. Used by ``cloud_tx``
        (REQ-011); kept generic in case other retry needs arise later.
+   * - ``fault_state``
+     - Shared
+     - Defines capability availability, fault classification, and recovery
+       notifications exchanged between application modules.
 
 EASNFW-SENSOR Modules
 ========================
@@ -96,8 +100,9 @@ Application layer
      - Storage
      - Persists processed blocks and environmental data/timestamps,
        assembles ecoacoustic records, removes them once delivery is
-       confirmed, and stores failure details to NVS (REQ-004, REQ-007,
-       REQ-008, REQ-010, REQ-011).
+       confirmed, quarantines record-specific transmission failures, and
+       stores failure details to NVS (REQ-004, REQ-007, REQ-008, REQ-010,
+       REQ-011).
    * - ``cloud_link``
      - Transmission
      - Sends payloads to EASNFW-CLOUD and reports delivery outcomes back
@@ -123,7 +128,8 @@ Domain layer
        ``audio_processing``.
    * - ``selftest``
      - Implements the individual self-test checks and their aggregation
-       (REQ-001). Used by ``sampling`` during initialization.
+       (REQ-001), including capability-based failure classification. Used by
+       ``sampling`` during initialization.
 
 Driver / platform layer
 --------------------------
@@ -176,7 +182,8 @@ Application layer
    * - ``cloud_tx``
      - Transmitting
      - Transmits payloads to the cloud platform, with retry/backoff on
-       failure (REQ-009, REQ-011).
+       failure, and reports record-specific failures separately from
+       transmission-blocking failures (REQ-009, REQ-011).
 
 Domain layer
 --------------

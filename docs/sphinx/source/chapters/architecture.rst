@@ -44,6 +44,29 @@ Design Principles
     message queues when idle, complemented by Zephyr's power management
     subsystem; no specific energy-saving strategy is defined.
 
+Fault handling and degraded operation
+=====================================
+
+EASNFW-SENSOR and EASNFW-CLOUD shall coordinate entry into a system-wide
+degraded state when a fault prevents safe acquisition, storage, or transmission.
+The component that detects the fault shall report it to the other component when
+the state affects record flow.
+
+The Storage thread is responsible for preserving incomplete and undelivered
+records and for preventing records from becoming eligible for transmission
+until they are complete. The Transmission and Receiving threads are
+responsible for distinguishing link acknowledgement from cloud commit
+acknowledgement and for making an unacknowledged payload available for safe
+retransmission. No thread shall make a record appear delivered solely because
+the other component received a link frame.
+
+When degraded, application threads shall stop normal data-pipeline operations.
+The cloud-side transmission path may remain active only to check for and fetch
+a firmware update. Fault state and recovery notifications shall be exchanged
+through the existing message queues or an equivalent application-level path;
+the specific scheduling and synchronization mechanism remains an implementation
+detail.
+
 EASNFW-SENSOR
 ===============
 

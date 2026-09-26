@@ -413,8 +413,8 @@ checks to NVS when the NVS check itself is among the failures.
    logs.
 
 **Expected result:** No attempt to write the failed-checks record to NVS
-is logged; the storage failure is reported through the remaining available
-diagnostic channel and the component enters its defined degraded state.
+is logged; the component handles the NVS failure according to its reset or
+degraded-state policy.
 
 TC-023: Connectivity failure does not reset or stop acquisition
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -430,6 +430,25 @@ be skipped does not reset the device or prevent locally supported acquisition.
 **Expected result:** The power-on log payload transmission is skipped, the
 failure is stored, the modem enters the deferred-retry policy, and scheduled
 acquisition continues without a connectivity-induced reset.
+
+TC-023a: Degraded state stops normal operations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Objective:** Verify that degraded state stops normal operations and permits
+only firmware-update fetching when cloud communication remains available.
+
+**Procedure:**
+
+1. Inject a permanent transmission-blocking fault.
+2. Trigger the self-test sequence.
+3. Reset the node without clearing the fault.
+4. Observe the acquisition, storage, transmission, firmware-update, and
+   degraded-state logs.
+
+**Expected result:** Acquisition, processing, storage, and normal transmission
+stop; durable and undelivered records are preserved; the degraded state
+survives the reset; and firmware-update fetching remains available if cloud
+communication is available.
 
 REQ-005: Audio and Environmental Data Sampling
 -------------------------------------------------
@@ -669,6 +688,22 @@ while its transmission has not yet succeeded.
 
 **Expected result:** The record remains present in mass storage.
 
+TC-035a: Acquisition stops when storage cannot provide durable space
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Objective:** Verify that storage exhaustion does not cause silent data loss.
+
+**Procedure:**
+
+1. Fill mass storage with undelivered records and incomplete records until
+   permitted delivered-record removal cannot provide sufficient space.
+2. Start the next scheduled acquisition.
+3. Inspect the record states and the system logs.
+
+**Expected result:** No new record is started, incomplete and undelivered
+records remain preserved, and the node reports a storage-related degraded
+state until sufficient space becomes available.
+
 REQ-011: Payload Transmission Error Handling
 --------------------------------------------
 
@@ -742,6 +777,22 @@ network is unavailable.
 **Expected result:** The failure record identifies the affected ``record_id``;
 the corresponding record remains pending in mass storage; no connectivity-
 induced reset occurs; and the next acquisition starts according to schedule.
+
+TC-039a: Record-specific failure does not block other records
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Objective:** Verify that a record rejected by the cloud platform is
+quarantined before normal operations stop.
+
+**Procedure:**
+
+1. Place one malformed record and one valid record in the pending queue.
+2. Trigger transmission with cloud connectivity available.
+3. Inspect both record states and the transmission log.
+
+**Expected result:** The malformed record is quarantined and its failure is
+stored. The node enters degraded state and does not transmit the valid record
+after entering that state.
 
 REQ-012: Save Energy While Idle
 -------------------------------
@@ -820,6 +871,20 @@ an out-of-order fragment, and an unsupported protocol version.
 **Expected result:** EASNFW-CLOUD does not produce a cloud payload from an
 invalid or incomplete transfer, reports the precise error, and does not issue a
 successful link acknowledgement for the affected fragment or record.
+
+TC-044a: Lost link acknowledgement permits retransmission
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Procedure:**
+
+1. Drop a link acknowledgement after EASNFW-CLOUD has validated a complete
+   frame.
+2. Allow EASNFW-SENSOR to retry the affected transfer.
+3. Observe the link and cloud commit acknowledgements.
+
+**Expected result:** The transfer is accepted again without duplicating the
+   cloud record, and only a cloud commit acknowledgement allows the local
+   record to be marked delivered.
 
 REQ-016: Idempotent Cloud Delivery
 ----------------------------------
@@ -974,6 +1039,12 @@ REQ-021: Bounded Automatic Recovery Resets
 TC-055: Recovery resets are bounded and persisted
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+.. warning::
+
+   Non-applicable for now. No recoverable-by-reset failures have been
+   identified in the current specification. This test case will be revisited
+   if and when such a failure is defined.
+
 **Procedure:**
 
 1. Configure small test values for ``PARAM_MAX_RECOVERY_RESETS`` and
@@ -988,6 +1059,12 @@ another automatic reset after the configured limit is reached.
 
 TC-056: Recovery-reset counter clears after stable operation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. warning::
+
+   Non-applicable for now. No recoverable-by-reset failures have been
+   identified in the current specification. This test case will be revisited
+   if and when such a failure is defined.
 
 **Procedure:**
 

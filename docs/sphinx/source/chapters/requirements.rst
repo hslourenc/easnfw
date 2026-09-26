@@ -5,65 +5,145 @@ Requirements
 REQ-001: Self-test Sequence
 ===========================
 
-Out of reset, EASNFW shall execute the self-test sequence, where it shall
-verify that:
+Out of reset, EASNFW shall execute the self-test sequence, where it shall check
+if the following functions are operational:
 
-* data can be written to and read from NVS;
-* data can be written to and read from mass storage;
-* audio data can be sampled from the audio sensor;
-* environmental data can be sampled from the environmental sensor;
-* EASNFW-SENSOR and EASNFW-CLOUD can communicate; and
-* data can be transmitted to the cloud platform.
+* NVS access (data can be written to and read from NVS);
+* mass storage access (data can be written to and read from mass storage);
+* audio data acquisition (audio data can be sampled from the audio sensor);
+* environmental data acquisition (environmental data can be sampled from the
+  environmental sensor);
+* inter-firmware link (EASNFW-SENSOR and EASNFW-CLOUD can communicate); and
+* cloud platform communication (data can be transmitted to and fetched from the
+  cloud platform).
 
 REQ-002: Power-On Log Payload Transmission
 ==========================================
 
-If all the self-test sequence checks succeed, or if the failed checks do not
-impact EASNFW's ability to transmit data to the cloud platform, EASNFW shall
-transmit the power-on log payload to the cloud platform. 
+When the self-test sequence finishes, if both the cloud platform communication
+and the inter-firmware link are classified as operational by the self-test
+sequence, EASNFW shall schedule the transmission of the power-on log payload to
+the cloud platform.
+
+EASNFW shall enter diagnostic state.
+
+EASNFW shall include in the power-on log payload:
+
+* the revision of EASNFW-SENSOR and EASNFW-CLOUD;
+* the reset reason from NVS, if NVS access is classified as operational by the
+  self-test sequence;
+* the reset reason from nRF5340's RESETREAS register;
+* the reset reason from nRF9151's RESETREAS register, if the inter-firmware link
+  is classified as operational by the self-test sequence; and
+* the results of the self-test sequence.
+
+REQ-xxx
+=======
+
+When the power-on log payload transmission is scheduled, EASNFW shall attempt to
+clear the reset reason from NVS.
+
+.. note::
+
+   "attempt" is used here because the self-test sequence may have found NVS
+   access as faulty.
 
 REQ-003: Pending Ecoacoustic Data Transmission
 ==============================================
 
-After the power-on log payload transmission, if all the self-test sequence
-checks required for acquisition succeed, EASNFW shall schedule any pending
-ecoacoustic records from previous reset cycles for transmission to the cloud
-platform. Pending transmissions shall not postpone a scheduled acquisition;
-transmission shall be paused or deferred when necessary to honor the sampling
-schedule.
+When the attempt to clear the reset reason from NVS is finished, if all the
+following are classified as operational by the self-test sequence:
 
-REQ-004: Self-test Sequence Failure
-===================================
+* mass storage access;
+* inter-firmware link; and
+* cloud platform communication;
 
-After the power-on log payload transmission step (whether the payload
-transmission has happened or been skipped), if any of the self-test sequence
-checks fails, EASNFW shall store the failed checks and classify the failure as
-acquisition-blocking, transient transmission-blocking, permanent
-transmission-blocking, or non-blocking.
+EASNFW shall schedule any pending ecoacoustic records from previous reset cycles
+for transmission to the cloud platform.
 
-If none of the detected faults prevent EASNFW from writing to NVS, EASNFW shall
-store failure details in NVS.
+Otherwise, EASNFW shall enter diagnostic state.
 
-If any of the identified failures is acquisition-blocking or permanent
-transmission-blocking, EASNFW shall reset if the failure is recoverable by
-reset (see :ref:`section_req_reset_policy`) or enter a degraded state otherwise.
+.. _section_req_diag_state:
 
-For faults classified as recoverable by reset, EASNFW
-shall apply the bounded automatic recovery policy defined in REQ-021.
+REQ-xxx: Diagnostic State
+=========================
 
-REQ-005: Audio and Environmental Data Sampling
-==============================================
+.. EASNFWTODO: send diagnostic info to cloud if possible
 
-After transmitting the power-on log payload and any pending ecoacoustic record
-data to the cloud platform, or after ``PARAM_INTER_TRACK_INTERVAL`` seconds
-(expected to be around 840 seconds, or 14 minutes) have passed since the end of
-the sampling of the last audio track sampling, EASNFW shall acquire one sample
-of each environmental data variable, capture a timestamp to mark the beginning
-of the audio sampling, acquire a number of audio samples according to the
-parameters defined below, and capture another timestamp to mark the end of the
-audio sampling.
+When EASNFW enters the diagnostic state, EASNFW shall:
 
-Parameters for audio sampling:
+* store the reason why it entered diagnostic state to NVS, identifying the
+  affected ecoacoustic record (``record_id``) when applicable;
+
+* if the reason why it entered diagnostic state is recoverable by reset:
+
+   * reset according to the reset policy from :ref:`section_req_reset_policy`;
+
+* otherwise:
+
+  * enter a low-power state,
+  * fetch new firmware versions from the cloud platform for OTA firmware updates
+    once every 5 minutes, and
+  * blink an LED with a period of 30 seconds to provide visual indication that
+    the device is in diagnostic state.
+
+.. note::
+
+   All actions from this requirement depend on the specific failure that led
+   EASNFW to enter diagnostic state (e.g. if it was a failure related to NVS,
+   EASNFW may not be able to store the reason why it entered diagnostic state to
+   NVS).
+
+.. note::
+
+   As of the current specification, no recoverable-by-reset failures have
+   been identified. Such failures will be properly defined if and when a
+   plausible case is identified.
+
+.. _section_req_data_acq_cycle:
+
+REQ-005: Data Acquisition Cycle
+===============================
+
+After the transmission of the power-on log payload and any pending ecoacoustic
+record from a previous reset cycle is scheduled, if the self-test sequence
+identifies all the checked capabilities as operational, EASNFW shall start
+the data acquisition cycle.
+
+For each data acquisition cycle, EASNFW shall wait until there is sufficient
+mass storage free-space for a new ecoacoustic record, EASNFW shall acquire audio
+and environmental data according to :ref:`section_req_audio_acquisition` and
+:ref:`section_req_environ_acquisition` and wait ``PARAM_INTER_TRACK_INTERVAL``
+seconds (initial baseline: 840 seconds) before starting the next data
+acquisition cycle. 
+
+.. note::
+
+   Ideally, EASNFW should not need to wait for mass storage free-space, as
+   :ref:`section_req_ecoacoustic_data_rm` takes care of immediately removing
+   delivered ecoacoustic records. EASNFW should ever only need to wait in case
+   there are issues transmitting the ecoacoustic records to the cloud.
+
+..
+   .. note::
+
+      The ``PARAM_INTER_TRACK_INTERVAL``-second interval needs to be relative to
+      the beginning of the data acquisition step, as opposed to the mass storage
+      utilization handling step, because the latter can vary substantially
+      depending on whether an ecoacoustic record needs to be removed from mass
+      storage.
+
+.. _section_req_audio_acquisition:
+
+REQ-xxx: Audio Data Acquisition
+===============================
+
+For each data acquisition cycle, EASNFW shall capture a
+``PARAM_TRACK_LEN``-second audio track using the parameters from
+:ref:`table_audio_sample_param` with ISO-8601 timestamps identifying the
+beginning and the end of the capture.
+
+.. _table_audio_sample_param:
 
 .. list-table:: Audio sampling parameters
    :header-rows: 1
@@ -78,65 +158,120 @@ Parameters for audio sampling:
    * - Sample width
      - ``PARAM_AUDIO_SAMPLE_WIDTH`` bits (initial baseline: 16 bits)
    * - Audio track duration
-     - ``PARAM_TRACK_LEN`` seconds (expected to be around 60 seconds)
+     - ``PARAM_TRACK_LEN`` seconds (initial baseline: 60 seconds)
    * - Bandwidth
      - ``PARAM_AUDIO_SAMPLE_BW_LO`` Hz to ``PARAM_AUDIO_SAMPLE_BW_HI`` Hz
+
+.. _section_req_environ_acquisition:
+
+REQ-xxx: Environmental Data Acquisition
+=======================================
+
+For each data acquisition cycle, EASNFW shall capture one sample of each of the
+following variables with an ISO-8601 timestamp identifying the moment of the
+capture.
 
 REQ-006: Audio Data Processing
 ==============================
 
 After a block of ``REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING`` audio samples
-have been acquired, EASNFW shall process this block according to the audio
+have been captured, EASNFW shall process this block according to the audio
 processing algorithm.
 
 .. note::
 
-   Details on the audio processing algorithm are still TBD, this requirement is
-   subject to significant change and expansion.
+   Details on the audio processing algorithm are yet to be defined, this
+   requirement is subject to significant change and expansion.
    ``REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING`` will be determined once more
    details on the audio processing algorithm are defined.
 
-REQ-007: Audio Data Persistence
-===============================
+REQ-007: Ecoacoustic Data Persistence
+=====================================
 
-After a block of ``REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING`` audio samples
-has been processed, EASNFW shall append the result to a temporary record in
-mass storage. Once every expected block and the associated metadata have been
-written and validated, EASNFW shall atomically mark the record as complete and
-eligible for transmission. Incomplete records shall not be transmitted.
+After a block of ``REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING`` audio samples has
+been processed, EASNFW shall append the result to a temporary record in mass
+storage. Once the results of every expected block (i.e. all blocks relative to a
+data acquisition cycle), have been stored in mass storage and validated
+according to the applicable validation process, EASNFW shall store the
+environmental data captured in the same data acquisition cycle, the associated
+timestamps, and the applicable metadata (if any) in mass storage and atomically
+mark the ecoacoustic record (i.e. the processed audio track and environmental
+data relative to the current acquisition cycle together with the associated
+timestamps and applicable metadata) as complete and eligible for transmission,
+and schedule its transmission the the cloud platform.
 
-REQ-008: Environmental Data and Timestamps Persistence
-======================================================
+.. note::
 
-After all the audio samples relative to a full audio track are processed,
-EASNFW shall store the associated environmental data and timestamps to mass
-storage.
+   The "applicable validation process" is to be identified during the
+   implementation, it should be treated as placeholders and not be considered
+   for verification purposes for now. It is possible that no applicable
+   validation process is identified.
 
-REQ-009: Ecoacoustic Data Transmission to the Cloud Platform
-============================================================
+.. _section_req_ecoacoustic_data_rm:
 
-After all the data relative to an ecoacoustic record is stored to mass storage,
-EASNFW shall transmit it to the cloud platform.
+REQ-010: Ecoacoustic Data Removal
+=================================
 
-REQ-010: Ecoacoustic Data Retention and Removal
-===============================================
+When a durable-storage acknowledgement for a given ecoacoustic record is
+received from the cloud platform, EASNFW shall remove that ecoacoustic record
+from mass storage.
 
-EASNFW shall mark an ecoacoustic record as delivered only after receiving a
-durable-storage acknowledgement from the cloud platform.
+..
+   EASNFW shall retain the ``PARAM_NUM_RETAINED_DELIVERED_RECORDS``
+   (initial baseline: 1) most recently delivered records in mass storage. When the
+   number of delivered records exceeds this value, EASNFW shall remove the oldest
+   delivered record from mass storage.
 
-EASNFW shall retain the ``PARAM_NUM_RETAINED_DELIVERED_RECORDS`` most recently
-delivered records in mass storage. When the number of delivered records exceeds
-this value, EASNFW shall remove the oldest delivered records first. A parameter
-value of zero shall cause EASNFW to remove each record after marking it as
-delivered.
+   .. note::
 
-When mass-storage utilization reaches ``PARAM_STORAGE_HIGH_WATERMARK``, EASNFW
-shall remove the oldest delivered records until utilization reaches
-``PARAM_STORAGE_LOW_WATERMARK``. EASNFW shall exclude records not marked as
-delivered from removal under this retention policy.
+      As a direct consequence, if ``PARAM_NUM_RETAINED_DELIVERED_RECORDS`` is zero,
+      EASNFW removes each ecoacoustic record after marking it as delivered.
 
-EASNFW shall load the retention parameters from validated persistent
-configuration stored in NVS.
+..
+   .. _section_req_mass_storage_util:
+
+   REQ-xxx: Mass Storage Utilization Handling
+   ==========================================
+
+   If mass storage free space is insufficient to store a new ecoacoustic record,
+   EASNFW shall pause the data acquisition cycle, wait until there is an
+   ecoacoustic record marked as delivered if there are none, remove the oldest
+   ecoacoustic record marked as delivered, and resume data acquisition.
+
+   Otherwise, EASNFW shall pause the data acquisition cycle and resume it after
+   ``ECOACOUSTIC_RECORD_RM_TIME`` seconds.
+
+   .. note::
+
+      Mass storage utilization is checked as part of the data acquisition cycle,
+      see :ref:`section_req_data_acq_cycle`.
+
+   .. note::
+
+      ``ECOACOUSTIC_RECORD_RM_TIME`` is the average time needed to remove an
+      ecoacoustic record from mass storage and will be determined empirically. The
+      ``ECOACOUSTIC_RECORD_RM_TIME``-second pause is required so the
+      ``PARAM_INTER_TRACK_INTERVAL``-second period between the data acquisition
+      relative to consecutive ecoacoustic records remains uniform. In practice,
+      what will typically happen is that, when booting with a clean mass storage
+      (no ecoacoustic records stored), the first few data acquisition cycles will
+      have sufficient space to store another ecoacoustic record, but starting from
+      a given ecoacoustic record, EASNFW will always need to remove an ecoacoustic
+      record from mass storage to begin another data acquisition cycle.
+
+REQ-xxx: Run-time Mass Storage Access Failure
+=============================================
+
+When mass storage access fails, EASNFW shall retry the operation if the failure
+is transient, or enter diagnostic state otherwise.
+
+.. note::
+
+   No transient failures on mass storage access have been identified so far,
+   that case is here as a placeholder and should not be considered for
+   verification purposes right now. This requirement and the relevant associated
+   test cases will be updated with a detailed retry policy if and any transient
+   failures on mass storage access are identified.
 
 REQ-011: Payload Transmission Error Handling
 ============================================
@@ -153,7 +288,8 @@ reset or stop scheduled data acquisition.
 
 If the transmission fails with a record-specific error, EASNFW shall notify the
 cloud platform about the issue, store failure details in NVS and enter a
-degraded state.
+degraded state. EASNFW shall quarantine the affected record before stopping
+normal operations.
 
 If the transmission fails with a transmission-blocking error, EASNFW shall store
 failure details in NVS and enter a degraded state.
@@ -245,6 +381,8 @@ EASNFW shall use synchronized ISO 8601 timestamps with UTC offset on
 ecoacoustic records and include information about the source used for
 synchronization on each record.
 
+.. _section_req_ota_update:
+
 REQ-019: OTA Firmware Update
 ============================
 
@@ -253,6 +391,8 @@ platform, EASNFW shall check whether new firmware versions are available on the
 cloud platform and, when one or more newer versions are available, update its
 firmware to the latest available versions after the current audio recording
 cycle.
+
+.. _section_req_ota_rollback:
 
 REQ-020: OTA Firmware Rollback
 ==============================
@@ -274,7 +414,9 @@ cycles and limit recovery attempts to ``PARAM_MAX_RECOVERY_RESETS`` within
 
 Upon reaching this limit, EASNFW shall enter a degraded state and disable
 further automatic resets until an explicit maintenance action occurs or the
-configured recovery condition, if any, is satisfied.
+configured recovery condition, if any, is satisfied. An explicit maintenance
+action shall be an operator-authorized action that clears or repairs the
+underlying fault; a normal reset alone shall not clear the degraded state.
 
 EASNFW shall clear the recovery-reset counter after completing the self-test
 sequence and ``PARAM_RESET_STABLE_CYCLES`` operating cycles without recurrence
