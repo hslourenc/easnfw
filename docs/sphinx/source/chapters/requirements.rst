@@ -279,8 +279,15 @@ REQ-011: Payload Transmission Error Handling
 When transmission of any payload to the cloud platform fails, EASNFW shall
 classify the error as transient, record-specific or transmission-blocking.
 
-If the transmission fails with a transient error, EASNFW shall retry up to
-``PARAM_NUM_RETRY_TX_CLOUD`` times. If all immediate retries fail, EASNFW shall
+If the transmission fails with a transient error, if less than
+``PARAM_NUM_RETRY_TX_CLOUD`` consecutive transmission retries failed, EASNFW
+shall retry after a uniformly random period in the interval
+[(3/4)*min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`),
+min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`)], where `c` is the retry count,
+starting at one.
+
+up to
+``PARAM_NUM_RETRY_TX_CLOUD`` according to :ref:. If all immediate retries fail, EASNFW shall
 preserve the associated record, store failure details, place the record back in
 the pending-transmission queue, and defer further attempts until a subsequent
 transmission window. Loss of connectivity shall not, by itself, cause a system
@@ -293,6 +300,9 @@ normal operations.
 
 If the transmission fails with a transmission-blocking error, EASNFW shall store
 failure details in NVS and enter a degraded state.
+
+REQ-XXX: 
+========
 
 Retry algorithm: for retry count c starting at 0, wait a uniformly random
 duration in [(3/4)*min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`),
