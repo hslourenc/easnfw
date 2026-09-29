@@ -33,11 +33,9 @@ REQ-002: Power-On Log Payload Transmission
 When the self-test sequence finishes, if both the cloud platform communication
 and the inter-firmware link are classified as operational by the self-test
 sequence, EASNFW shall schedule the transmission of the power-on log payload to
-the cloud platform.
+the cloud platform. Otherwise, EASNFW shall enter diagnostic state.
 
-EASNFW shall enter diagnostic state.
-
-EASNFW shall include in the power-on log payload:
+The power-on log payload includes:
 
 * the revision of EASNFW-SENSOR and EASNFW-CLOUD;
 * the reset reason from NVS, if NVS access is classified as operational by the
@@ -105,6 +103,10 @@ When EASNFW enters the diagnostic state, EASNFW shall:
      once every 5 minutes;
   #. blink an LED with a period of 30 seconds to provide visual indication that
      the device is in diagnostic state.
+
+The diagnostic log payload contains all the information of the power-on log
+payload (see :ref:`section_req_diag_state`) plus the reason why it entered
+diagnostic state.
 
 .. note::
 
