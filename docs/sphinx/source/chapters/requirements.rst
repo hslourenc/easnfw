@@ -51,12 +51,20 @@ REQ-xxx
 =======
 
 When the power-on log payload transmission is scheduled, EASNFW shall attempt to
-clear the reset reason from NVS.
+clear the reset reason from NVS and update the reset history on NVS.
+
+The reset history on NVS is a ring buffer that contains a rolling history of the
+date and time of the last ``PARAM_MAX_RECOVERY_RESETS`` resets.
 
 .. note::
 
-   "attempt" is used here because the self-test sequence may have found NVS
-   access as faulty.
+   "attempt" is used here because at this point, the self-test sequence may have
+   found NVS access as faulty.
+
+.. note::
+
+   The reset history is needed for the recovery reset mechanism described in
+   :ref:`section_req_diag_state`.
 
 REQ-003: Pending Ecoacoustic Data Transmission
 ==============================================
@@ -78,24 +86,25 @@ Otherwise, EASNFW shall enter diagnostic state.
 REQ-xxx: Diagnostic State
 =========================
 
-.. EASNFWTODO: send diagnostic info to cloud if possible
-
 When EASNFW enters the diagnostic state, EASNFW shall:
 
-* store the reason why it entered diagnostic state to NVS, identifying the
-  affected ecoacoustic record (``record_id``) when applicable;
+#. store the reason why it entered diagnostic state to NVS, identifying the
+   affected ecoacoustic record (``record_id``) when applicable;
+#. transmit a diagnostic log payload to the cloud;
 
-* if the reason why it entered diagnostic state is recoverable by reset:
+#. if the reason why it entered diagnostic state is recoverable by reset, and
+   the recovery reset counter is less than ``PARAM_MAX_RECOVERY_RESETS``:
 
-   * reset according to the reset policy from :ref:`section_req_reset_policy`;
+   #. increment the recovery reset counter;
+   #. reset according to the reset policy from :ref:`section_req_reset_policy`;
 
-* otherwise:
+#. otherwise:
 
-  * enter a low-power state,
-  * fetch new firmware versions from the cloud platform for OTA firmware updates
-    once every 5 minutes, and
-  * blink an LED with a period of 30 seconds to provide visual indication that
-    the device is in diagnostic state.
+  #. enter a low-power state,
+  #. fetch new firmware versions from the cloud platform for OTA firmware updates
+     once every 5 minutes;
+  #. blink an LED with a period of 30 seconds to provide visual indication that
+     the device is in diagnostic state.
 
 .. note::
 
@@ -109,6 +118,18 @@ When EASNFW enters the diagnostic state, EASNFW shall:
    As of the current specification, no recoverable-by-reset failures have
    been identified. Such failures will be properly defined if and when a
    plausible case is identified.
+
+.. note::
+
+   An implementation consequence of the described recovery reset mechanism is
+   that the recovery reset counter needs to be stored in NVS to persist across
+   resets.
+
+REQ-xxx
+=======
+
+After ``PARAM_RECOVERY_RESET_WINDOW`` seconds (initial baseline: 120 seconds) of uptime,
+EASNFW shall clear the reset recovery counter.
 
 .. _section_req_data_acq_cycle:
 
