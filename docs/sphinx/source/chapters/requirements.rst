@@ -406,23 +406,3 @@ For each FUOTA cycle, EASNFW shall:
 
 #. otherwise: wait ``PARAM_FUOTA_CYCLE_PERIOD`` seconds.
 
-.. _section_req_reset_policy:
-
-REQ-021: Bounded Automatic Recovery Resets
-==========================================
-
-When EASNFW handles a fault classified as recoverable by reset, EASNFW shall
-record the fault and increment its recovery-reset counter before requesting an
-automatic reset. EASNFW shall preserve this counter across automatic reset
-cycles and limit recovery attempts to ``PARAM_MAX_RECOVERY_RESETS`` within
-``PARAM_RECOVERY_RESET_WINDOW``.
-
-Upon reaching this limit, EASNFW shall enter a degraded state and disable
-further automatic resets until an explicit maintenance action occurs or the
-configured recovery condition, if any, is satisfied. An explicit maintenance
-action shall be an operator-authorized action that clears or repairs the
-underlying fault; a normal reset alone shall not clear the degraded state.
-
-EASNFW shall clear the recovery-reset counter after completing the self-test
-sequence and ``PARAM_RESET_STABLE_CYCLES`` operating cycles without recurrence
-of the fault.
