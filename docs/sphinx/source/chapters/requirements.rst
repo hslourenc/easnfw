@@ -2,11 +2,21 @@
 Requirements
 ************
 
+.. _section_req_ota_rollback:
+
+REQ-020: FUOTA Rollback
+=======================
+
+Out of reset, EASNFW shall validate the loaded firmware image by checking if it
+is signed with the correct key, and if not, EASNFW shall roll back to the
+previously known-good firmware version.
+
 REQ-001: Self-test Sequence
 ===========================
 
-Out of reset, EASNFW shall execute the self-test sequence, where it shall check
-if the following functions are operational:
+After validating the loaded firmware image (:ref:`section_req_ota_rollback`), if
+the firmware image is found to be acceptable, EASNFW shall execute the self-test
+sequence, where it shall check if the following functions are operational:
 
 * NVS access (data can be written to and read from NVS);
 * mass storage access (data can be written to and read from mass storage);
@@ -111,8 +121,8 @@ identifies all the checked capabilities as operational, EASNFW shall start
 the data acquisition cycle.
 
 For each data acquisition cycle, EASNFW shall wait until there is sufficient
-mass storage free-space for a new ecoacoustic record, EASNFW shall acquire audio
-and environmental data according to :ref:`section_req_audio_acquisition` and
+mass storage free-space for a new ecoacoustic record, acquire audio and
+environmental data according to :ref:`section_req_audio_acquisition` and
 :ref:`section_req_environ_acquisition` and wait ``PARAM_INTER_TRACK_INTERVAL``
 seconds (initial baseline: 840 seconds) before starting the next data
 acquisition cycle. 
@@ -140,8 +150,8 @@ REQ-xxx: Audio Data Acquisition
 
 For each data acquisition cycle, EASNFW shall capture a
 ``PARAM_TRACK_LEN``-second audio track using the parameters from
-:ref:`table_audio_sample_param` with ISO-8601 timestamps identifying the
-beginning and the end of the capture.
+:ref:`table_audio_sample_param` with ISO-8601 timestamps with UTC offset
+identifying the beginning and the end of the capture.
 
 .. _table_audio_sample_param:
 
@@ -168,8 +178,8 @@ REQ-xxx: Environmental Data Acquisition
 =======================================
 
 For each data acquisition cycle, EASNFW shall capture one sample of each of the
-following variables with an ISO-8601 timestamp identifying the moment of the
-capture.
+following variables with an ISO-8601 timestamp with UTC offset identifying the
+moment of the capture.
 
 REQ-006: Audio Data Processing
 ==============================
@@ -192,13 +202,22 @@ After a block of ``REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING`` audio samples has
 been processed, EASNFW shall append the result to a temporary record in mass
 storage. Once the results of every expected block (i.e. all blocks relative to a
 data acquisition cycle), have been stored in mass storage and validated
-according to the applicable validation process, EASNFW shall store the
-environmental data captured in the same data acquisition cycle, the associated
-timestamps, and the applicable metadata (if any) in mass storage and atomically
-mark the ecoacoustic record (i.e. the processed audio track and environmental
-data relative to the current acquisition cycle together with the associated
-timestamps and applicable metadata) as complete and eligible for transmission,
-and schedule its transmission the the cloud platform.
+according to the applicable validation process, EASNFW shall assemble the
+canonical ecoacoustic record, store it in mass storage, atomically mark it as
+complete and eligible for transmission, and schedule its transmission the the
+cloud platform.
+
+The canonical ecoacoustic record includes:
+
+* the processed audio track;
+* the environmental data;
+* a globally unique ``record_id``;
+* the sampling parameters used to capture the audio track;
+* the timestamps associated to the audio and environmental data acquisition (as
+  per :ref:`section_req_audio_acquisition` and
+  :req:`section_req_environ_acquisition`);
+* the source used for the timestamps synchronization; and
+* the processing algorithm version.
 
 .. note::
 
@@ -206,6 +225,14 @@ and schedule its transmission the the cloud platform.
    implementation, it should be treated as placeholders and not be considered
    for verification purposes for now. It is possible that no applicable
    validation process is identified.
+
+.. note::
+
+   The canonical ecoacoustic record may include additional metadata that the
+   developers find relevant during the implementation, but for verification
+   purposes, only the items listed above should be considered. This requirement
+   and the relevant associated test cases will be updated when and if additional
+   metadata is found to be needed.
 
 .. _section_req_ecoacoustic_data_rm:
 
@@ -276,44 +303,13 @@ is transient, or enter diagnostic state otherwise.
 REQ-011: Payload Transmission Error Handling
 ============================================
 
-When transmission of any payload to the cloud platform fails, EASNFW shall
-classify the error as transient, record-specific or transmission-blocking.
+When transmission of any payload to the cloud platform fails,
 
-If the transmission fails with a transient error, if less than
-``PARAM_NUM_RETRY_TX_CLOUD`` consecutive transmission retries failed, EASNFW
-shall retry after a uniformly random period in the interval
-[(3/4)*min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`),
-min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`)], where `c` is the retry count,
-starting at one.
-
-up to
-``PARAM_NUM_RETRY_TX_CLOUD`` according to :ref:. If all immediate retries fail, EASNFW shall
-preserve the associated record, store failure details, place the record back in
-the pending-transmission queue, and defer further attempts until a subsequent
-transmission window. Loss of connectivity shall not, by itself, cause a system
-reset or stop scheduled data acquisition.
-
-If the transmission fails with a record-specific error, EASNFW shall notify the
-cloud platform about the issue, store failure details in NVS and enter a
-degraded state. EASNFW shall quarantine the affected record before stopping
-normal operations.
-
-If the transmission fails with a transmission-blocking error, EASNFW shall store
-failure details in NVS and enter a degraded state.
-
-REQ-XXX: 
-========
-
-Retry algorithm: for retry count c starting at 0, wait a uniformly random
-duration in [(3/4)*min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`),
-min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`)] seconds before each retry.
-
-.. note::
-
-   "Transmission window" refers to a bounded period in which the communication
-   path is active and records may be uploaded. Initially, a transmission window
-   will be triggered after a new record becomes ready or during initialization
-   when pending records exist.
+* if the failure is transient: EASNFW shall retry after a uniformly random
+  period in [(3/4)*min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`),
+  min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`)], where `c` is the retry count,
+  starting at one;
+* if the failure is permamnent: EASNFW shall enter diagnostic state.
 
 .. note::
 
@@ -321,12 +317,11 @@ min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`)] seconds before each retry.
    TLS timeout, server unavailability, and retryable HTTP responses such as
    408, 429, and 5xx.
 
-   Record-specific errors may include malformed, corrupted, unsupported, or
-   oversized payloads rejected by the cloud platform.
-
-   Transmission-blocking errors may include modem hardware failure, inactive or
-   rejected SIM service, invalid provisioning or credentials, and an
-   unavailable data subscription or account balance.
+   Permanent errors may include: record-specific errors, such as malformed,
+   corrupted, unsupported, or oversized payloads rejected by the cloud platform;
+   or permanent transmission errors, such as modem hardware failure, inactive or
+   rejected SIM service, invalid provisioning or credentials, or an unavailable
+   data subscription or account balance.
 
 .. _section_req_save_energy:
 
@@ -335,17 +330,26 @@ REQ-012: Save Energy While Idle
 
 While EASNFW is idle, EASNFW shall enter an energy-saving state.
 
-In the HIL verification image, EASNFW shall expose test cases or commands to
-execute specific tasks or code paths isolated from normal application logic, to
-allow for the measurement of the energy consumed by each of them separately.
-The target tasks and code paths are: data acquisition (acquisition of a full
-audio track and one sample of each monitored environmental variable), audio
-processing, data
-storage to mass storage (storage of a processed audio track and one sample of
-each monitored environmental variable), and transmission cycle (sampling,
-processing, storing and transmitting one ecoacoustic record to the cloud
-platform). Acceptance limits for each operating state will be established after
-the first hardware characterization campaign.
+.. note::
+
+   From a firmware perspective, what this means is having efficient threads
+   design, such as putting threads to sleep when there is no work to be done by
+   them and preferring design patters such as interrupts and events over
+   polling.
+
+.. note::
+
+   For verification purposes, EASNFW's HIL verification image needs to expose
+   test cases or commands to execute specific tasks or code paths isolated from
+   normal application logic, to allow for the measurement of the energy consumed
+   by each of them separately. The target tasks and code paths are: data
+   acquisition (acquisition of a full audio track and one sample of each
+   monitored environmental variable), audio processing, data storage to mass
+   storage (storage of a processed audio track and one sample of each monitored
+   environmental variable), and transmission cycle (sampling, processing,
+   storing and transmitting one ecoacoustic record to the cloud platform).
+   Acceptance limits for each operating state will be established after the
+   first hardware characterization campaign.
 
 .. _section_logging:
 
@@ -356,60 +360,30 @@ The firmware shall log information relevant to verifying correct system
 operation and identifying and diagnosing failures, in a way that logs can be
 monitored in real time from a host PC through USB.
 
-REQ-014: Canonical Ecoacoustic Record Assembly
-==============================================
-
-EASNFW-SENSOR shall assign a globally unique ``record_id`` to each acquisition
-event and assemble the canonical ecoacoustic record before transmission. The
-record shall include explicit format, acquisition-configuration, and
-processing-algorithm versions so that stored data remains interpretable after
-firmware updates.
-
-REQ-015: Inter-component Transfer Integrity
-===========================================
-
-EASNFW shall transfer records between EASNFW-SENSOR and EASNFW-CLOUD using a
-versioned, fragmented protocol with integrity checking. EASNFW-CLOUD shall
-reject corrupted, incomplete, or unsupported frames without acknowledging them
-as successfully received.
-
-REQ-016: Idempotent Cloud Delivery
-==================================
-
-Each cloud transmission shall identify the corresponding ``record_id``.
-
-.. note::
-
-   The cloud platform treats repeated delivery of the same ``record_id`` as an
-   idempotent operation and returns a durable-storage acknowledgement for a
-   record that has already been committed.
-
-REQ-018: Time Validity
-======================
-
-EASNFW shall use synchronized ISO 8601 timestamps with UTC offset on
-ecoacoustic records and include information about the source used for
-synchronization on each record.
-
 .. _section_req_ota_update:
 
-REQ-019: OTA Firmware Update
-============================
+REQ-019: Firmware Update Over-The-Air (FUOTA)  Cycle
+====================================================
 
-When an ecoacoustic record has been completely transmitted to the cloud
-platform, EASNFW shall check whether new firmware versions are available on the
-cloud platform and, when one or more newer versions are available, update its
-firmware to the latest available versions after the current audio recording
-cycle.
+After the transmission of the power-on log payload and any pending ecoacoustic
+record from a previous reset cycle is scheduled, if the self-test sequence
+identifies all the checked capabilities as operational, EASNFW shall start
+the FUOTA cycle.
 
-.. _section_req_ota_rollback:
+For each FUOTA cycle, EASNFW shall:
 
-REQ-020: OTA Firmware Rollback
-==============================
+#. check whether a newer firmware version is available on the cloud platform;
+#. if yes, then:
 
-After an OTA firmware update, EASNFW shall roll back to the previously known
-good firmware versions if the loaded firmware image is invalid, unsigned, or
-signed with the wrong key.
+   #. if not in diagnostic mode, then:
+
+      #. pause the data acquisition cycle after the current cycle ends;
+      #. wait until all the pending ecoacoustic records are transmitted to the
+         cloud platform;
+
+   #. perform the firmware update;
+
+#. otherwise: wait ``PARAM_FUOTA_CYCLE_PERIOD`` seconds.
 
 .. _section_req_reset_policy:
 
