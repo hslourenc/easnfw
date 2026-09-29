@@ -27,6 +27,8 @@ sequence, where it shall check if the following functions are operational:
 * cloud platform communication (data can be transmitted to and fetched from the
   cloud platform).
 
+.. _section_req_power_on_log_tx:
+
 REQ-002: Power-On Log Payload Transmission
 ==========================================
 
@@ -94,26 +96,25 @@ When EASNFW enters the diagnostic state, EASNFW shall:
    the recovery reset counter is less than ``PARAM_MAX_RECOVERY_RESETS``:
 
    #. increment the recovery reset counter;
-   #. reset according to the reset policy from :ref:`section_req_reset_policy`;
+   #. reset;
 
 #. otherwise:
 
   #. enter a low-power state,
-  #. fetch new firmware versions from the cloud platform for OTA firmware updates
-     once every 5 minutes;
+  #. stop the data acquisition cycle;
   #. blink an LED with a period of 30 seconds to provide visual indication that
      the device is in diagnostic state.
 
 The diagnostic log payload contains all the information of the power-on log
-payload (see :ref:`section_req_diag_state`) plus the reason why it entered
+payload (see :ref:`section_req_power_on_log_tx`) plus the reason why it entered
 diagnostic state.
 
 .. note::
 
-   All actions from this requirement depend on the specific failure that led
-   EASNFW to enter diagnostic state (e.g. if it was a failure related to NVS,
-   EASNFW may not be able to store the reason why it entered diagnostic state to
-   NVS).
+   All actions from this requirement should be considered as attemps, as their
+   success depend on the specific failure that led EASNFW to enter diagnostic
+   state (e.g. if it was a failure related to NVS, EASNFW may not be able to
+   store the reason why it entered diagnostic state to NVS).
 
 .. note::
 
@@ -154,7 +155,7 @@ acquisition cycle.
 
    Ideally, EASNFW should not need to wait for mass storage free-space, as
    :ref:`section_req_ecoacoustic_data_rm` takes care of immediately removing
-   delivered ecoacoustic records. EASNFW should ever only need to wait in case
+   delivered ecoacoustic records. EASNFW should only ever need to wait in case
    there are issues transmitting the ecoacoustic records to the cloud.
 
 ..
@@ -201,8 +202,15 @@ REQ-xxx: Environmental Data Acquisition
 =======================================
 
 For each data acquisition cycle, EASNFW shall capture one sample of each of the
-following variables with an ISO-8601 timestamp with UTC offset identifying the
-moment of the capture.
+tracked environmental variables with an ISO-8601 timestamp with UTC offset
+identifying the moment of the capture.
+
+Tracked environmental variables:
+
+* temperature;
+* pressure;
+* humidity; and
+* volatile organic compounds (VOCs).
 
 REQ-006: Audio Data Processing
 ==============================
@@ -227,7 +235,7 @@ storage. Once the results of every expected block (i.e. all blocks relative to a
 data acquisition cycle), have been stored in mass storage and validated
 according to the applicable validation process, EASNFW shall assemble the
 canonical ecoacoustic record, store it in mass storage, atomically mark it as
-complete and eligible for transmission, and schedule its transmission the the
+complete and eligible for transmission, and schedule its transmission to the
 cloud platform.
 
 The canonical ecoacoustic record includes:
@@ -238,14 +246,14 @@ The canonical ecoacoustic record includes:
 * the sampling parameters used to capture the audio track;
 * the timestamps associated to the audio and environmental data acquisition (as
   per :ref:`section_req_audio_acquisition` and
-  :req:`section_req_environ_acquisition`);
+  :ref:`section_req_environ_acquisition`);
 * the source used for the timestamps synchronization; and
 * the processing algorithm version.
 
 .. note::
 
    The "applicable validation process" is to be identified during the
-   implementation, it should be treated as placeholders and not be considered
+   implementation. It should be treated as a placeholder and not be considered
    for verification purposes for now. It is possible that no applicable
    validation process is identified.
 
@@ -317,22 +325,27 @@ is transient, or enter diagnostic state otherwise.
 
 .. note::
 
-   No transient failures on mass storage access have been identified so far,
-   that case is here as a placeholder and should not be considered for
+   No transient failures on mass storage access have been identified so far.
+   This case is included as a placeholder and should not be considered for
    verification purposes right now. This requirement and the relevant associated
-   test cases will be updated with a detailed retry policy if and any transient
+   test cases will be updated with a detailed retry policy if any transient
    failures on mass storage access are identified.
+
+.. _section_req_tx_error:
 
 REQ-011: Payload Transmission Error Handling
 ============================================
 
-When transmission of any payload to the cloud platform fails,
+When transmission of any payload to the cloud platform fails, EASNFW shall:
 
-* if the failure is transient: EASNFW shall retry after a uniformly random
-  period in [(3/4)*min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`),
-  min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`)], where `c` is the retry count,
-  starting at one;
-* if the failure is permamnent: EASNFW shall enter diagnostic state.
+#. if the failure is transient: retry after a uniformly random period in
+   [(3/4)*min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`),
+   min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`)], where `c` is the retry count
+   starting at zero and and stopping at ``PARAM_MAX_RETRY_COUNT``;
+#. if the failure is permanent: enter diagnostic state.
+
+The initial baseline for ``PARAM_MAX_RETRY_DELAY`` and ``PARAM_MAX_RETRY_COUNT``
+is 30 seconds and 10, respectively.
 
 .. note::
 
@@ -346,6 +359,12 @@ When transmission of any payload to the cloud platform fails,
    rejected SIM service, invalid provisioning or credentials, or an unavailable
    data subscription or account balance.
 
+REQ-xxx: Retry Count Reset
+==========================
+
+When a payload is successfully transmitted to the cloud platform, the retry
+count (see :ref:`section_req_tx_error`) is reset to zero.
+
 .. _section_req_save_energy:
 
 REQ-012: Save Energy While Idle
@@ -355,9 +374,9 @@ While EASNFW is idle, EASNFW shall enter an energy-saving state.
 
 .. note::
 
-   From a firmware perspective, what this means is having efficient threads
+   From a firmware perspective, what this means is having efficient thread
    design, such as putting threads to sleep when there is no work to be done by
-   them and preferring design patters such as interrupts and events over
+   them and preferring design patterns such as interrupts and events over
    polling.
 
 .. note::
@@ -396,9 +415,9 @@ the FUOTA cycle.
 For each FUOTA cycle, EASNFW shall:
 
 #. check whether a newer firmware version is available on the cloud platform;
-#. if yes, then:
+#. if so:
 
-   #. if not in diagnostic mode, then:
+   #. if not in diagnostic state, then:
 
       #. pause the data acquisition cycle after the current cycle ends;
       #. wait until all the pending ecoacoustic records are transmitted to the
@@ -408,3 +427,7 @@ For each FUOTA cycle, EASNFW shall:
 
 #. otherwise: wait ``PARAM_FUOTA_CYCLE_PERIOD`` seconds.
 
+.. note::
+
+   The FUOTA cycle may also be started when in diagnostic mode, see
+   :ref:`section_req_diag_state`.
