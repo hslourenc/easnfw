@@ -10,7 +10,7 @@ out of reset, but instead exposes a command line interface (CLI) over USB that
 triggers specific code paths on demand, each test case below assumes it is
 driven by a host PC issuing CLI commands to EASNFW-SENSOR.
 
-REQ-001: Self-test Sequence
+REQ-023: Self-test Sequence
 ---------------------------
 
 TC-001: NVS check succeeds under normal conditions
@@ -233,7 +233,7 @@ repetition of step 2, exactly the faulted check reports failure and the
 remaining five report success; this is all reflected in the returned CLI result
 / USB log.
 
-REQ-002: Power-On Log Payload Transmission
+REQ-024: Power-On Log Payload Transmission
 ------------------------------------------
 
 TC-014: Power-on log payload transmitted when all checks succeed
@@ -292,31 +292,55 @@ communication check).
 **Expected result:** No power-on log payload transmission is attempted, and
 this is reflected in the returned CLI result / USB log.
 
-REQ-003: Pending Ecoacoustic Data Transmission
+REQ-025: Reset Reason and History Update
+----------------------------------------
+
+TC-016a: Reset reason is cleared and reset history is updated
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Objective:** Verify that scheduling the power-on log transmission attempts to
+clear the reset reason and update the reset-history ring buffer in NVS.
+
+**Procedure:**
+
+1. Configure a known reset reason and a reset-history ring buffer in NVS.
+2. Trigger and complete more than ``PARAM_MAX_RECOVERY_RESETS`` reset
+   sequences.
+3. Inspect the reset reason and reset-history entries in NVS.
+
+**Expected result:** The reset reason is cleared, and the current reset
+timestamp is added to the reset-history ring buffer. The buffer contains only
+the most recent ``PARAM_MAX_RECOVERY_RESETS`` reset timestamps. If NVS is
+faulty, the actions are attempted and the failure is reported without invalid
+NVS data.
+
+REQ-026: Pending Ecoacoustic Data Transmission
 ----------------------------------------------
 
-TC-017: Pending ecoacoustic records are scheduled after self-test success
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-017: Pending records are scheduled without delaying acquisition
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Objective:** Verify that ecoacoustic records pending from a previous reset
-cycle are scheduled after the power-on log without blocking scheduled
-acquisition.
+cycle are scheduled after the power-on log, while the next acquisition starts
+according to schedule.
 
 **Preconditions:** One or more pending ecoacoustic records are present in mass
-storage (simulating records left over from a prior cycle); all modules are in a
-known-good state.
+storage (simulating records left over from a prior cycle); all acquisition
+modules are in a known-good state.
 
 **Procedure:**
 
 1. Trigger a reset, then the full self-test sequence.
-2. Monitor the cloud-facing interface after the power-on log payload has
-   been sent and observe the returned result and USB log output.
-3. Inspect mass storage contents.
+2. Populate mass storage with more pending records than can be transmitted
+   before the next scheduled acquisition.
+3. Monitor the cloud-facing interface after the power-on log payload has
+   been sent, and observe the acquisition timestamps and USB log output.
+4. Inspect mass storage contents.
 
 **Expected result:** Pending records enter the transmission queue in age order.
-Transmission pauses or is deferred when necessary to start the next acquisition
-on schedule. Records remain in mass storage until durable cloud delivery is
-confirmed.
+The next acquisition starts according to schedule without waiting for the
+backlog to drain. Transmission pauses or is deferred as necessary. Records
+remain in mass storage until durable cloud delivery is confirmed.
 
 TC-018: Acquisition-capability failure prevents normal acquisition
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -356,7 +380,7 @@ modules are in a known-good state.
 **Expected result:** The power-on log payload is transmitted; no ecoacoustic
 record transmission is attempted and no error is reported.
 
-REQ-004: Self-test Sequence Failure
+REQ-027: Diagnostic State
 -----------------------------------
 
 TC-020: Failed checks are stored to NVS
@@ -416,11 +440,11 @@ checks to NVS when the NVS check itself is among the failures.
 is logged; the component handles the NVS failure according to its reset or
 degraded-state policy.
 
-TC-023: Connectivity failure does not reset or stop acquisition
+TC-023: Connectivity failure enters diagnostic state
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Objective:** Verify that a failure causing the power-on log transmission to
-be skipped does not reset the device or prevent locally supported acquisition.
+be skipped enters diagnostic state.
 
 **Procedure:**
 
@@ -428,14 +452,14 @@ be skipped does not reset the device or prevent locally supported acquisition.
 2. Trigger the self-test sequence and observe the USB log.
 
 **Expected result:** The power-on log payload transmission is skipped, the
-failure is stored, the modem enters the deferred-retry policy, and scheduled
-acquisition continues without a connectivity-induced reset.
+failure is recorded as an attempted diagnostic-state action, and the device
+enters diagnostic state.
 
-TC-023a: Degraded state stops normal operations
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-023a: Diagnostic state stops data acquisition
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Objective:** Verify that degraded state stops normal operations and permits
-only firmware-update fetching when cloud communication remains available.
+**Objective:** Verify that diagnostic state stops data acquisition and starts
+the FUOTA cycle when cloud communication remains available.
 
 **Procedure:**
 
@@ -445,32 +469,40 @@ only firmware-update fetching when cloud communication remains available.
 4. Observe the acquisition, storage, transmission, firmware-update, and
    degraded-state logs.
 
-**Expected result:** Acquisition, processing, storage, and normal transmission
-stop; durable and undelivered records are preserved; the degraded state
-survives the reset; and firmware-update fetching remains available if cloud
-communication is available.
+**Expected result:** Data acquisition stops, durable and undelivered records
+are preserved, the diagnostic state survives the reset, and the FUOTA cycle
+starts if it was not already running.
 
-REQ-005: Audio and Environmental Data Sampling
--------------------------------------------------
+TC-023b: Diagnostic log payload contains required information
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-TC-024: Sampling starts after initialization without waiting for backlog
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Objective:** Verify that audio and environmental sampling begins after
-initialization and is not blocked by a pending-transmission backlog.
+**Objective:** Verify that the diagnostic log payload contains the power-on
+log information and the diagnostic-state reason.
 
 **Procedure:**
 
-1. Ensure all acquisition subsystems are in a known-good state and populate
-   mass storage with more pending records than can be sent before the next
-   scheduled acquisition.
-2. Trigger the self-test sequence and monitor the USB log for the start
-   of sampling.
+1. Trigger a diagnostic-state entry with a known failure and affected
+   ``record_id``.
+2. Inspect the diagnostic log payload.
 
-**Expected result:** Initial sampling begins after initialization without
-waiting for the backlog to drain. Subsequent sampling honors
-``PARAM_INTER_TRACK_INTERVAL`` while transmission is paused or deferred as
-needed.
+**Expected result:** The payload contains the power-on log information and
+identifies the diagnostic-state reason and affected ``record_id`` when
+applicable.
+
+TC-023c: Diagnostic-state indication is provided
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Objective:** Verify that the diagnostic-state visual indication is provided.
+
+**Procedure:**
+
+1. Enter diagnostic state with a persistent failure.
+2. Monitor the diagnostic-state LED for at least 60 seconds.
+
+**Expected result:** The LED blinks with a 30-second period.
+
+REQ-029: Data Acquisition Cycle
+--------------------------------
 
 TC-025: Inter-track interval is honored between consecutive tracks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -490,6 +522,27 @@ have elapsed since the end of the previous track's sampling.
 **Expected result:** The measured interval is ``PARAM_INTER_TRACK_INTERVAL``
 seconds.
 
+REQ-030: Data Acquisition Cycle Priority
+----------------------------------------
+
+TC-025a: Data acquisition takes priority over conflicting actions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Objective:** Verify that data-acquisition actions take priority when another
+requirement schedules a conflicting action.
+
+**Procedure:**
+
+1. Schedule a data-acquisition cycle and a conflicting transmission or
+   firmware-update action at the same time.
+2. Observe the acquisition and competing action timestamps.
+
+**Expected result:** The data-acquisition actions are performed first, and the
+conflicting action is deferred until the acquisition actions are complete.
+
+REQ-032: Environmental Data Acquisition
+---------------------------------------
+
 TC-026: One environmental sample and two timestamps are captured per track
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -506,6 +559,9 @@ timestamp and an end timestamp.
 **Expected result:** Exactly one temperature, humidity, pressure, and VOCs
 sample is captured; a start timestamp is captured before audio sampling begins
 and an end timestamp after it ends, with end greater than start.
+
+REQ-031: Audio Data Acquisition
+-------------------------------
 
 TC-027: Audio sampling parameters match configuration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -549,7 +605,7 @@ attenuated as expected.
 **Expected result:** Signal content within the configured band is
 preserved; content outside the band is attenuated or not present.
 
-REQ-006: Audio Data Processing
+REQ-033: Audio Data Processing
 ------------------------------
 
 TC-029: Processing is triggered per block of required samples
@@ -565,8 +621,8 @@ audio processing algorithm.
    ``REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING`` is TBD. This test case should
    be detailed once the algorithm is specified.
 
-REQ-007: Audio Data Persistence
-------------------------------------
+REQ-034: Ecoacoustic Data Persistence
+-------------------------------------
 
 TC-030: Processed block results are persisted to mass storage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -600,14 +656,14 @@ mass storage holds the processed results for every block of that track.
 no missing or duplicate sample ranges. The final block may be shorter than a
 full processing block.
 
-REQ-008: Environmental Data and Timestamps Persistence
-------------------------------------------------------
+Environmental Data and Timestamps Persistence
+----------------------------------------------
 
 TC-032: Environmental data and timestamps persisted after track completion
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Objective:** Verify that the environmental sample and the two timestamps
-captured for a track (REQ-005) are written to mass storage once all of the
+captured for a track (REQ-029) are written to mass storage once all of the
 track's audio samples have been processed.
 
 **Procedure:**
@@ -617,11 +673,11 @@ track's audio samples have been processed.
    environmental data and timestamp entries associated with the track.
 
 **Expected result:** The persisted entry's environmental values and
-timestamps match those captured during REQ-005's sampling step for the
+timestamps match those captured during REQ-029's sampling step for the
 same track.
 
-REQ-009: Ecoacoustic Data Transmission to the Cloud Platform
-------------------------------------------------------------
+Ecoacoustic Record Transmission Scheduling
+------------------------------------------
 
 TC-033: Ecoacoustic record transmitted once fully stored
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -635,7 +691,7 @@ platform once all of its data is stored in mass storage.
 **Procedure:**
 
 1. Trigger sampling and processing of a full track through to persistence
-   (REQ-007/REQ-008).
+   (REQ-034).
 2. Monitor the cloud-facing interface for the resulting ecoacoustic
    record payload(s).
 
@@ -643,35 +699,26 @@ platform once all of its data is stored in mass storage.
 payloads as needed. The server validates and durably commits the complete
 ``record_id`` before returning a cloud commit acknowledgement.
 
-REQ-010: Ecoacoustic Data Retention and Removal
+REQ-035: Ecoacoustic Data Removal
 ---------------------------------------------------
 
 TC-034: Record marked delivered only after durable cloud acknowledgement
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Objective:** Verify that an ecoacoustic record is marked delivered only after
-the cloud platform confirms durable storage, and is removed only when permitted
-by the configured retention policy.
+**Objective:** Verify that an ecoacoustic record is removed only after the
+cloud platform confirms durable storage.
 
 **Procedure:**
 
 1. Trigger sampling, processing, persistence and transmission of a full
-   track (REQ-005 through REQ-009).
+   track (REQ-029 through REQ-026).
 2. Confirm link-level receipt without returning a cloud commit acknowledgement
    and inspect the record state.
 3. Return the cloud commit acknowledgement and inspect the record state.
-4. Apply the configured retention policy.
 
 **Expected result:** Link-level receipt does not mark the record delivered.
-Cloud commit marks it delivered. Removal occurs only when the retention policy
-permits it.
-
-The test shall be repeated with a retention count greater than zero and with a
-retention count of zero. When the delivered-record count exceeds the configured
-limit, the oldest delivered records are removed first. With a zero limit, each
-record is removed after it is marked delivered. When the high-watermark
-threshold is reached, delivered records are removed until the low-watermark
-threshold is reached; undelivered records remain untouched.
+The durable cloud acknowledgement marks it delivered, after which the record
+is removed from mass storage. Undelivered records remain untouched.
 
 TC-035: Record retained in mass storage when transmission fails
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -688,7 +735,7 @@ while its transmission has not yet succeeded.
 
 **Expected result:** The record remains present in mass storage.
 
-TC-035a: Acquisition stops when storage cannot provide durable space
+TC-035a: Acquisition waits when storage cannot provide durable space
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Objective:** Verify that storage exhaustion does not cause silent data loss.
@@ -700,11 +747,29 @@ TC-035a: Acquisition stops when storage cannot provide durable space
 2. Start the next scheduled acquisition.
 3. Inspect the record states and the system logs.
 
-**Expected result:** No new record is started, incomplete and undelivered
-records remain preserved, and the node reports a storage-related degraded
-state until sufficient space becomes available.
+**Expected result:** The data-acquisition cycle waits until sufficient space
+is available. Incomplete and undelivered records remain preserved.
 
-REQ-011: Payload Transmission Error Handling
+REQ-036: Run-time Mass Storage Access Failure
+---------------------------------------------
+
+TC-035b: Runtime mass-storage access failure enters diagnostic state
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Objective:** Verify that a permanent runtime mass-storage access failure
+enters diagnostic state.
+
+**Procedure:**
+
+1. Start a data-acquisition cycle with mass storage operating normally.
+2. Inject a mass-storage access failure during the cycle.
+3. Observe the storage result and system state.
+
+**Expected result:** The failed operation is retried when classified as
+transient. For a permanent failure, the device enters diagnostic state and
+does not silently discard the affected data.
+
+REQ-037: Payload Transmission Error Handling
 --------------------------------------------
 
 TC-036: Transient transmission failure is retried
@@ -745,56 +810,71 @@ tolerance.
 TC-038: Retry count does not exceed the configured maximum
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Objective:** Verify that EASNFW stops retrying after
-``PARAM_NUM_RETRY_TX_CLOUD`` attempts.
+**Objective:** Verify that the retry count does not exceed
+``PARAM_MAX_RETRY_COUNT``.
 
 **Procedure:**
 
-1. Configure a small test value for ``PARAM_NUM_RETRY_TX_CLOUD``.
+1. Configure a small test value for ``PARAM_MAX_RETRY_COUNT``.
 2. Disable cloud connectivity.
 3. Trigger transmission of a payload and count retry attempts from the
    USB log.
 
-**Expected result:** Exactly ``PARAM_NUM_RETRY_TX_CLOUD`` retries occur
-after the initial attempt, then no further retries are made.
+**Expected result:** The retry count starts at zero and does not exceed
+``PARAM_MAX_RETRY_COUNT``. Once the limit is reached, the retry count stops
+incrementing.
 
 TC-039: Failure is recorded and delivery deferred after maximum retries
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Objective:** Verify that, once ``PARAM_NUM_RETRY_TX_CLOUD`` immediate retries
-have failed, EASNFW records the failure, preserves the record, defers delivery,
-and continues scheduled acquisition without resetting solely because the
-network is unavailable.
+**Objective:** Verify that transmission failure details are recorded and the
+affected payload remains available for a subsequent attempt.
 
 **Procedure:**
 
-1. Configure a small test value for ``PARAM_NUM_RETRY_TX_CLOUD``.
+1. Configure a small test value for ``PARAM_MAX_RETRY_COUNT``.
 2. Disable cloud connectivity.
 3. Trigger transmission of a payload and let all retries fail.
 4. Read back the failure record and inspect the pending queue.
-5. Keep connectivity unavailable through the next scheduled acquisition.
 
-**Expected result:** The failure record identifies the affected ``record_id``;
-the corresponding record remains pending in mass storage; no connectivity-
-induced reset occurs; and the next acquisition starts according to schedule.
+**Expected result:** The affected payload remains available for a subsequent
+attempt, and the retry count stops incrementing at
+``PARAM_MAX_RETRY_COUNT``.
 
-TC-039a: Record-specific failure does not block other records
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-039a: Permanent transmission failure enters diagnostic state
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Objective:** Verify that a record rejected by the cloud platform is
-quarantined before normal operations stop.
+**Objective:** Verify that a permanent transmission failure enters diagnostic
+state.
 
 **Procedure:**
 
-1. Place one malformed record and one valid record in the pending queue.
+1. Place a malformed record in the pending queue.
 2. Trigger transmission with cloud connectivity available.
 3. Inspect both record states and the transmission log.
 
-**Expected result:** The malformed record is quarantined and its failure is
-stored. The node enters degraded state and does not transmit the valid record
-after entering that state.
+**Expected result:** The malformed record is rejected, the failure is recorded
+as a diagnostic-state action, and the node enters diagnostic state.
 
-REQ-012: Save Energy While Idle
+REQ-038: Retry Count Reset
+--------------------------
+
+TC-039b: Successful payload transmission resets the retry count
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Objective:** Verify that a successful payload transmission resets the global
+retry count to zero.
+
+**Procedure:**
+
+1. Cause one or more transient transmission failures.
+2. Successfully transmit a payload.
+3. Cause another transient transmission failure and inspect the retry count.
+
+**Expected result:** The retry count is zero immediately after the successful
+transmission, and the next retry sequence starts at zero.
+
+REQ-039: Save Energy While Idle
 -------------------------------
 
 TC-040: Operating-state energy is measurable
@@ -815,8 +895,26 @@ cost.
 reported energy value. No thread prevents entry into the configured idle state
 between scheduled activities.
 
-REQ-014: Canonical Ecoacoustic Record Assembly
-----------------------------------------------
+REQ-040: Logging
+----------------
+
+TC-040a: Operational and failure events are logged
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Objective:** Verify that logs contain information useful for verifying
+operation and diagnosing failures and can be monitored through USB.
+
+**Procedure:**
+
+1. Run a normal acquisition and transmission cycle.
+2. Inject a self-test or transmission failure.
+3. Monitor the USB log during both runs.
+
+**Expected result:** The USB log reports relevant operational events in the
+normal run and identifies the failure and its context in the faulted run.
+
+Canonical Ecoacoustic Record Assembly
+--------------------------------------
 
 TC-041: Complete record is committed atomically
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -848,7 +946,7 @@ TC-042: Interrupted record remains recoverable but is not transmitted
 according to policy; it is never represented as a complete record and is not
 transmitted.
 
-REQ-015: Inter-component Transfer Integrity
+Inter-component Transfer Integrity
 -------------------------------------------
 
 TC-043: Multi-frame record is reassembled correctly
@@ -886,7 +984,7 @@ TC-044a: Lost link acknowledgement permits retransmission
    cloud record, and only a cloud commit acknowledgement allows the local
    record to be marked delivered.
 
-REQ-016: Idempotent Cloud Delivery
+Idempotent Cloud Delivery
 ----------------------------------
 
 TC-045: Retransmission does not duplicate a cloud record
@@ -926,21 +1024,17 @@ latency.
 gaps, duplicates, or reordering; any detected overrun causes the track to be
 flagged rather than silently accepted.
 
-REQ-018: Time Validity
-----------------------
-
 TC-048: Unsynchronized acquisition is marked explicitly
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Procedure:** Boot the node without an available absolute-time source and
 acquire one record, then restore time synchronization and acquire another.
 
-**Expected result:** The first record contains monotonic timing and an invalid
-or unsynchronized wall-clock flag. The second contains a synchronized timestamp
-and identifies its synchronization source.
+**Expected result:** Both records contain ISO-8601 timestamps with UTC offsets;
+the second record identifies its synchronization source.
 
-REQ-019: OTA Firmware Update
-----------------------------
+REQ-041: Firmware Update Over-The-Air (FUOTA) Cycle
+---------------------------------------------------
 
 TC-049: Firmware availability is checked after complete record transmission
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -961,6 +1055,21 @@ record transmission, without waiting for the current recording cycle to end.
 The latest available firmware versions are scheduled for update, and the
 update is performed only after the current recording cycle ends; the active
 recording is not interrupted.
+
+TC-049a: FUOTA can start from diagnostic state
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Objective:** Verify that the FUOTA cycle can be started from diagnostic
+state when cloud communication is available.
+
+**Procedure:**
+
+1. Enter diagnostic state with cloud communication available.
+2. Ensure that no FUOTA cycle is already running.
+3. Monitor firmware-availability checks and the diagnostic-state log.
+
+**Expected result:** The FUOTA cycle starts, and firmware availability is
+checked without resuming normal data acquisition.
 
 TC-050: No firmware update is attempted when no newer version is available
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -988,21 +1097,8 @@ TC-051: Latest available firmware version is installed
 **Expected result:** EASNFW installs the latest available compatible versions
 of both components and reports those versions in the next power-on log.
 
-REQ-020: OTA Firmware Rollback
+REQ-022: FUOTA Rollback
 ------------------------------
-
-TC-052: Invalid firmware image triggers rollback
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Procedure:**
-
-1. Configure the cloud platform to provide an invalid firmware image.
-2. Complete an ecoacoustic record transmission and allow the OTA update to
-   proceed.
-3. Reboot the node and inspect the boot result and firmware versions.
-
-**Expected result:** The invalid image is not activated; EASNFW rolls back to
-the previously known good versions and records the rollback reason.
 
 TC-053: Unsigned firmware image triggers rollback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1033,8 +1129,8 @@ TC-054: Firmware image signed with the wrong key triggers rollback
 rolls back to the previously known good versions and records the key-validation
 failure.
 
-REQ-021: Bounded Automatic Recovery Resets
-------------------------------------------
+Recovery Reset Behavior
+-----------------------
 
 TC-055: Recovery resets are bounded and persisted
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1057,6 +1153,9 @@ TC-055: Recovery resets are bounded and persisted
 survives reboot, and the node enters a degraded state instead of requesting
 another automatic reset after the configured limit is reached.
 
+REQ-028: Recovery Reset Counter Clearing
+----------------------------------------
+
 TC-056: Recovery-reset counter clears after stable operation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1069,19 +1168,15 @@ TC-056: Recovery-reset counter clears after stable operation
 **Procedure:**
 
 1. Recover from a reset-classified fault and complete the self-test sequence.
-2. Run the configured number of stable operating cycles without recurrence.
-3. Inject the same fault after the stable cycles and inspect the counter.
+2. Run for ``PARAM_RECOVERY_RESET_WINDOW`` seconds without recurrence.
+3. Inject the same fault after the recovery window and inspect the counter.
 
 **Expected result:** The recovery-reset counter is cleared after
-``PARAM_RESET_STABLE_CYCLES`` fault-free operating cycles, and a subsequent
+``PARAM_RECOVERY_RESET_WINDOW`` seconds of uptime, and a subsequent
 recoverable fault starts a new recovery sequence.
 
 Known Gaps
 ==========
-
-Requirement :ref:`section_logging` does not have associated test cases because
-it does not explicitly define the activities that EASNFW should log, and it is
-rather left to the developer's discretion.
 
 Numerical energy acceptance limits remain open pending the first complete-node
 characterization campaign. TC-040 defines how the baseline measurements shall

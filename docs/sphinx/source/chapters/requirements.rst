@@ -4,19 +4,19 @@ Requirements
 
 .. _section_req_ota_rollback:
 
-REQ-020: FUOTA Rollback
+REQ-022: FUOTA Rollback
 =======================
 
-Out of reset, EASNFW shall validate the loaded firmware image by checking if it
-is signed with the correct key, and if not, EASNFW shall roll back to the
+Out of reset, EASNFW shall validate the loaded firmware image by checking
+whether it is signed with the correct key and, if not, EASNFW shall roll back to the
 previously known-good firmware version.
 
-REQ-001: Self-test Sequence
+REQ-023: Self-test Sequence
 ===========================
 
 After validating the loaded firmware image (:ref:`section_req_ota_rollback`), if
 the firmware image is found to be acceptable, EASNFW shall execute the self-test
-sequence, where it shall check if the following functions are operational:
+sequence to check whether the following functions are operational:
 
 * NVS access (data can be written to and read from NVS);
 * mass storage access (data can be written to and read from mass storage);
@@ -29,7 +29,7 @@ sequence, where it shall check if the following functions are operational:
 
 .. _section_req_power_on_log_tx:
 
-REQ-002: Power-On Log Payload Transmission
+REQ-024: Power-On Log Payload Transmission
 ==========================================
 
 When the self-test sequence finishes, if both the cloud platform communication
@@ -47,8 +47,8 @@ The power-on log payload includes:
   is classified as operational by the self-test sequence; and
 * the results of the self-test sequence.
 
-REQ-xxx
-=======
+REQ-025: Reset Reason and History Update
+========================================
 
 When the power-on log payload transmission is scheduled, EASNFW shall attempt to
 clear the reset reason from NVS and update the reset history on NVS.
@@ -66,7 +66,7 @@ date and time of the last ``PARAM_MAX_RECOVERY_RESETS`` resets.
    The reset history is needed for the recovery reset mechanism described in
    :ref:`section_req_diag_state`.
 
-REQ-003: Pending Ecoacoustic Data Transmission
+REQ-026: Pending Ecoacoustic Data Transmission
 ==============================================
 
 When the attempt to clear the reset reason from NVS is finished, if all the
@@ -83,7 +83,7 @@ Otherwise, EASNFW shall enter diagnostic state.
 
 .. _section_req_diag_state:
 
-REQ-xxx: Diagnostic State
+REQ-027: Diagnostic State
 =========================
 
 When EASNFW enters the diagnostic state, EASNFW shall:
@@ -100,9 +100,10 @@ When EASNFW enters the diagnostic state, EASNFW shall:
 
 #. otherwise:
 
-  #. enter a low-power state,
-  #. stop the data acquisition cycle;
-  #. blink an LED with a period of 30 seconds to provide visual indication that
+  #. stop the data acquisition cycle, if it is running;
+  #. start the FUOTA cycle (described in :ref:`section_req_ota_update`), if it has
+     not already been started;
+  #. blink an LED with a period of 30 seconds to provide a visual indication that
      the device is in diagnostic state.
 
 The diagnostic log payload contains all the information of the power-on log
@@ -111,8 +112,8 @@ diagnostic state.
 
 .. note::
 
-   All actions from this requirement should be considered as attemps, as their
-   success depend on the specific failure that led EASNFW to enter diagnostic
+   All actions in this requirement should be considered attempts, as their
+   success depends on the specific failure that led EASNFW to enter diagnostic
    state (e.g. if it was a failure related to NVS, EASNFW may not be able to
    store the reason why it entered diagnostic state to NVS).
 
@@ -128,15 +129,15 @@ diagnostic state.
    that the recovery reset counter needs to be stored in NVS to persist across
    resets.
 
-REQ-xxx
-=======
+REQ-028: Recovery Reset Counter Clearing
+========================================
 
-After ``PARAM_RECOVERY_RESET_WINDOW`` seconds (initial baseline: 120 seconds) of uptime,
-EASNFW shall clear the reset recovery counter.
+After ``PARAM_RECOVERY_RESET_WINDOW`` seconds (initial baseline: 120 seconds) of
+uptime, EASNFW shall clear the recovery reset counter.
 
 .. _section_req_data_acq_cycle:
 
-REQ-005: Data Acquisition Cycle
+REQ-029: Data Acquisition Cycle
 ===============================
 
 After the transmission of the power-on log payload and any pending ecoacoustic
@@ -158,18 +159,16 @@ acquisition cycle.
    delivered ecoacoustic records. EASNFW should only ever need to wait in case
    there are issues transmitting the ecoacoustic records to the cloud.
 
-..
-   .. note::
+REQ-030: Data Acquisition Cycle Priority
+========================================
 
-      The ``PARAM_INTER_TRACK_INTERVAL``-second interval needs to be relative to
-      the beginning of the data acquisition step, as opposed to the mass storage
-      utilization handling step, because the latter can vary substantially
-      depending on whether an ecoacoustic record needs to be removed from mass
-      storage.
+When an action from a requirement different from
+:ref:`section_req_data_acq_cycle` conflicts with any of its actions, EASNFW
+shall prioritize the actions from :ref:`section_req_data_acq_cycle`.
 
 .. _section_req_audio_acquisition:
 
-REQ-xxx: Audio Data Acquisition
+REQ-031: Audio Data Acquisition
 ===============================
 
 For each data acquisition cycle, EASNFW shall capture a
@@ -198,7 +197,7 @@ identifying the beginning and the end of the capture.
 
 .. _section_req_environ_acquisition:
 
-REQ-xxx: Environmental Data Acquisition
+REQ-032: Environmental Data Acquisition
 =======================================
 
 For each data acquisition cycle, EASNFW shall capture one sample of each of the
@@ -212,7 +211,7 @@ Tracked environmental variables:
 * humidity; and
 * volatile organic compounds (VOCs).
 
-REQ-006: Audio Data Processing
+REQ-033: Audio Data Processing
 ==============================
 
 After a block of ``REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING`` audio samples
@@ -221,12 +220,12 @@ processing algorithm.
 
 .. note::
 
-   Details on the audio processing algorithm are yet to be defined, this
+   Details on the audio processing algorithm are yet to be defined. This
    requirement is subject to significant change and expansion.
    ``REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING`` will be determined once more
    details on the audio processing algorithm are defined.
 
-REQ-007: Ecoacoustic Data Persistence
+REQ-034: Ecoacoustic Data Persistence
 =====================================
 
 After a block of ``REQUIRED_NUM_AUDIO_SAMPLES_FOR_PROCESSING`` audio samples has
@@ -247,7 +246,7 @@ The canonical ecoacoustic record includes:
 * the timestamps associated to the audio and environmental data acquisition (as
   per :ref:`section_req_audio_acquisition` and
   :ref:`section_req_environ_acquisition`);
-* the source used for the timestamps synchronization; and
+* the source used for timestamp synchronization; and
 * the processing algorithm version.
 
 .. note::
@@ -267,57 +266,14 @@ The canonical ecoacoustic record includes:
 
 .. _section_req_ecoacoustic_data_rm:
 
-REQ-010: Ecoacoustic Data Removal
+REQ-035: Ecoacoustic Data Removal
 =================================
 
 When a durable-storage acknowledgement for a given ecoacoustic record is
 received from the cloud platform, EASNFW shall remove that ecoacoustic record
 from mass storage.
 
-..
-   EASNFW shall retain the ``PARAM_NUM_RETAINED_DELIVERED_RECORDS``
-   (initial baseline: 1) most recently delivered records in mass storage. When the
-   number of delivered records exceeds this value, EASNFW shall remove the oldest
-   delivered record from mass storage.
-
-   .. note::
-
-      As a direct consequence, if ``PARAM_NUM_RETAINED_DELIVERED_RECORDS`` is zero,
-      EASNFW removes each ecoacoustic record after marking it as delivered.
-
-..
-   .. _section_req_mass_storage_util:
-
-   REQ-xxx: Mass Storage Utilization Handling
-   ==========================================
-
-   If mass storage free space is insufficient to store a new ecoacoustic record,
-   EASNFW shall pause the data acquisition cycle, wait until there is an
-   ecoacoustic record marked as delivered if there are none, remove the oldest
-   ecoacoustic record marked as delivered, and resume data acquisition.
-
-   Otherwise, EASNFW shall pause the data acquisition cycle and resume it after
-   ``ECOACOUSTIC_RECORD_RM_TIME`` seconds.
-
-   .. note::
-
-      Mass storage utilization is checked as part of the data acquisition cycle,
-      see :ref:`section_req_data_acq_cycle`.
-
-   .. note::
-
-      ``ECOACOUSTIC_RECORD_RM_TIME`` is the average time needed to remove an
-      ecoacoustic record from mass storage and will be determined empirically. The
-      ``ECOACOUSTIC_RECORD_RM_TIME``-second pause is required so the
-      ``PARAM_INTER_TRACK_INTERVAL``-second period between the data acquisition
-      relative to consecutive ecoacoustic records remains uniform. In practice,
-      what will typically happen is that, when booting with a clean mass storage
-      (no ecoacoustic records stored), the first few data acquisition cycles will
-      have sufficient space to store another ecoacoustic record, but starting from
-      a given ecoacoustic record, EASNFW will always need to remove an ecoacoustic
-      record from mass storage to begin another data acquisition cycle.
-
-REQ-xxx: Run-time Mass Storage Access Failure
+REQ-036: Run-time Mass Storage Access Failure
 =============================================
 
 When mass storage access fails, EASNFW shall retry the operation if the failure
@@ -333,15 +289,16 @@ is transient, or enter diagnostic state otherwise.
 
 .. _section_req_tx_error:
 
-REQ-011: Payload Transmission Error Handling
+REQ-037: Payload Transmission Error Handling
 ============================================
 
 When transmission of any payload to the cloud platform fails, EASNFW shall:
 
 #. if the failure is transient: retry after a uniformly random period in
    [(3/4)*min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`),
-   min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`)], where `c` is the retry count
-   starting at zero and and stopping at ``PARAM_MAX_RETRY_COUNT``;
+   min(``PARAM_MAX_RETRY_DELAY``, :math:`2^c`)], where `c` is the global
+   (payload- and record-independent) retry count, starting at zero and
+   stopping at ``PARAM_MAX_RETRY_COUNT``;
 #. if the failure is permanent: enter diagnostic state.
 
 The initial baseline for ``PARAM_MAX_RETRY_DELAY`` and ``PARAM_MAX_RETRY_COUNT``
@@ -359,7 +316,12 @@ is 30 seconds and 10, respectively.
    rejected SIM service, invalid provisioning or credentials, or an unavailable
    data subscription or account balance.
 
-REQ-xxx: Retry Count Reset
+.. note::
+
+   Nothing special happens when the retry count reaches
+   ``PARAM_MAX_RETRY_COUNT``; it simply stops incrementing.
+
+REQ-038: Retry Count Reset
 ==========================
 
 When a payload is successfully transmitted to the cloud platform, the retry
@@ -367,7 +329,7 @@ count (see :ref:`section_req_tx_error`) is reset to zero.
 
 .. _section_req_save_energy:
 
-REQ-012: Save Energy While Idle
+REQ-039: Save Energy While Idle
 ===============================
 
 While EASNFW is idle, EASNFW shall enter an energy-saving state.
@@ -395,7 +357,7 @@ While EASNFW is idle, EASNFW shall enter an energy-saving state.
 
 .. _section_logging:
 
-REQ-013: Logging
+REQ-040: Logging
 ================
 
 The firmware shall log information relevant to verifying correct system
@@ -404,7 +366,7 @@ monitored in real time from a host PC through USB.
 
 .. _section_req_ota_update:
 
-REQ-019: Firmware Update Over-The-Air (FUOTA)  Cycle
+REQ-041: Firmware Update Over-The-Air (FUOTA) Cycle
 ====================================================
 
 After the transmission of the power-on log payload and any pending ecoacoustic
@@ -429,5 +391,5 @@ For each FUOTA cycle, EASNFW shall:
 
 .. note::
 
-   The FUOTA cycle may also be started when in diagnostic mode, see
+   The FUOTA cycle may also be started when in diagnostic state, see
    :ref:`section_req_diag_state`.
