@@ -2,6 +2,116 @@
 Verification
 ************
 
+The verification set-up consists in a client CLI denominated CLI_C, that runs
+on a PC, interfacing through USB with a host CLI denominated CLI_H, running on
+EASN, specifically on nRF5340 Audio DK. CLI_C translates each user command into
+one or more commands to CLI_H, parses CLI_H responses, performs additional
+checks if needed, and prints the result to the user. For convenience, the
+commands issued by the user to CLI_C are denominates primary commands, and the
+commands issued by CLI_C to CLI_H are denominated secondary commands.
+
+Primary Commands
+================
+
+**Primary commands format**: `easncli <command> [options] [arguments]`
+
+The supported primary commands are detailed below.
+
+easncli tc [options] <test-case-number>
+=======================================
+
+Description
+-----------
+
+Executes the test case specified by `test-case-number`.
+
+Arguments
+---------
+
+* `test-case-number`: number of the test case to be executed (e.g. `eascncli tc
+  1` executes TC-001).
+
+Output
+------
+
+The main results of the test case are returned in the JSON file `results.json`
+with the following content:
+
+* `passed`: `true` if the test case passes, `false` otherwise.
+* `need_further_verif`: `true` if the the test case results needs further
+  verification (e.g. if the audio data needs to be analyzed by an external tool
+  to check if it was sampled with the expected parameters, or if there is
+  anything that needs to be checked on the cloud platform), `false` otherwise.
+* `further_verif_type`: string that indicates how the test case results are
+  supposed to be further verified if `need_further_verif` is `true`, `null`
+  otherwise.
+* `evidence`: evidence supporting the verdict of whether the test case passed
+  or not (e.g. logs from CLI_H or EASNFW).
+* `data`: list of strings indicating the path to the any additional files
+  created (e.g. path to the file of the raw audio track).
+
+The contents of `results.json` are printed to the terminal.
+
+The results of the test case are organized within a new directory relative to
+where the command was run. This new directory is structured as follows:
+
+.. code-block::
+
+   tc-[test-case-number]-[timestamp]/
+   |
+   |__result.json (summary of the results: verdict, evidence
+   |               and paths to any created data files)
+   |
+   |__clih.log (CLI_H logs)
+   |
+   |__easnfw.log (EASNFW logs)
+   |
+   |__data/ (additional data, optional)
+      |
+      |__audio/
+         |
+         |__audio_raw.wav (raw audio track)
+         |
+         |__audio_processed.wav (processed audio track)
+      |
+      |__mem_dump/ (only for NVS dump for now)
+      |
+      ...
+
+
+* `easncli tcfull [options]`: executes the full suite of test cases and
+  returns:
+   
+   * a verdict that is `1` if at least one test case returned a verdict of `1`,
+     `2` if no test case returned a verdict of `1` and at least one test case
+     returned a verdict of `2`, or `0` if all test cases returned a verdict of
+     `0`.
+   * a list of the failed test cases, if any; and
+   * a list of the test cases whose verdict needs to be further verified, if
+     any.
+
+  The results are organized in a similar fashion as for the single-test-case
+  commands:
+
+   .. code-block::
+
+      tc-full-[timestamp]/
+      |
+      |__result.json (summary of the results: verdict, list of failed test cases
+                        and list of test cases to be further verified)
+      |
+      |__tc-000/ (results for TC-000, as in the single-test-case command)
+      |
+      |__tc-001/
+      |
+      ...
+
+Options
+-------
+
+* `--treat-further-verif-as-fail`: treat a result where further verification is
+  needed as a failed test case, it is treated as a passed test case by default. 
+
 HIL Verification Image Test Cases
 =================================
 
