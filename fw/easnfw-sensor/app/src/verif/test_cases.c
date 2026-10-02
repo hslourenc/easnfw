@@ -1,7 +1,10 @@
+#include <zephyr/logging/log.h>
+#include <easnfw/domain.h>
+
 void app_test_cases__set_selftest_nvs_fault(void);
 void app_test_cases__clear_all_faults(void);
 
-// maybe it is better if easnfw resets before every test case
+struct injected_faults faults = {0};
 
 void app_test_cases__tc001(void)
 {
@@ -30,10 +33,10 @@ void app_test_cases__tc002(void)
 
 void app_test_cases__set_selftest_nvs_fault(void)
 {
-	injected_faults.selftest_nvs_fault = 1;
+	faults.selftest_nvs_fault = 1;
 }
 
 void app_test_cases__clear_all_faults(void)
 {
-	injected_faults = (struct faults){0};
+	faults = (struct faults){0};
 }

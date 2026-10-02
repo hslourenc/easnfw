@@ -10,6 +10,66 @@ checks if needed, and prints the result to the user. For convenience, the
 commands issued by the user to CLI_C are denominates primary commands, and the
 commands issued by CLI_C to CLI_H are denominated secondary commands.
 
+For test cases, specifically, this is the flow:
+
+#. CLI_C breaks the test case down into multiple steps in case a reset of
+   EASNFW is needed in the middle of the test case.
+#. For each test case step:
+
+   #. CLI_C issues the `reset` secondary command to CLI_H (needed even if for
+      one-step test cases, to restore EASNFW to a clean state).
+   #. Upon receiving the `reset` secondary command from CLI_C, CLI_H resets
+      EASNFW.
+   #. CLI_C waits for a signal from CLI_H indicating that reset is complete.
+   #. CLI_C issues the `tc [--step <step-number>] <test-case-number>` secondary
+      command to CLI_H.
+   #. CLI_H executes the test case step by exercising the applicable pieces of
+      code from EASNFW and verifying the produced output.
+   #. CLI_H logs the test case status to CLI_C indicating the result of the test
+      case, if there is one, or 
+
+
+   #. If the test case already failed:
+      
+      #. CLI_H logs a "test case failed" status to CLI_C.
+   
+   #. Else:
+   
+      #. If it is the last step in the test case:
+     
+         #. CLI_H decides if the test case failed, passed or its results are
+            inconclusive (needs further verification from either CLI_C or the
+            user) and logs the corresponding test case status to CLI_H.
+      
+      #. Else:
+
+         #. CLI_H logs a "step done" status to CLI_C.
+
+#. If the results of the test case were inconclusive, and CLI_C needs to
+   perform additional verification, CLI_C does so and decides on the result
+   itself.
+#. CLI_C assembles the output as per `section_verif_easncli_tc_output`.
+
+Test case status log format: `TCSTATUS_<STATUS> - <INFO>`.
+
+* `<STATUS>`: 
+
+   * `FAIL`: test case failed.
+   * `SUCCESS`: test case passed.
+   * `INCONCLUSIVE`: test case result is inconclusive, either CLI_H or the
+      user needs to perform additional verification.
+   * `STEPDONE`: test case is not finished yet, CLI_H logs this status once
+      it is done with the current step.
+
+* `<INFO>`: provides a summary of the returned status with any additional data
+  that may be useful to analyze the results.
+
+
+.. note::
+
+   All logs from EASNFW, including from CLI_H, are redirected to the USB
+   interface through which CLI_C and CLI_H communicate.
+
 Primary Commands
 ================
 
@@ -35,6 +95,8 @@ Arguments
 
 * `test-case-number`: number of the test case to be executed (e.g. `easncli tc
   1` executes TC-001).
+
+.. _section_verif_easncli_tc_output:
 
 Output
 ^^^^^^
@@ -69,10 +131,9 @@ was run. This new directory is structured as follows:
    |
    |__result.json
    |
+   |__tc-[test-case-number]_cli_c.log (CLI_C logs)
    |
-   |__clih.log (CLI_H logs)
-   |
-   |__easnfw.log (EASNFW logs)
+   |__tc-[test-case-number].log (CLI_H / EASNFW logs)
    |
    |__data/ (additional data, optional)
       |
@@ -143,52 +204,56 @@ driven by a host PC issuing CLI commands to EASNFW-SENSOR.
 REQ-023: Self-test Sequence
 ---------------------------
 
-TC-001: NVS check succeeds under normal conditions
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-001: Self-test NVS check succeeds under normal conditions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Objective:** Verify that the NVS read/write self-test check reports success
-when NVS is functional.
+Objective
+"""""""""
 
-**Preconditions:** NVS is in a known-good state.
+Verify that the NVS check of the self-test sequence reports success when NVS is
+functional.
 
-**Procedure:**
+Preconditions
+"""""""""""""
 
-#. CLI_C sends the `tc001` command to CLI_H.
-#. CLI_H runs a function that performs the NVS check of the self-test sequence
-   (`selftest_nvs()`).
-#. EASNFW
-#. CLI_H parses the results of `selftest_nvs()` and outputs:
+NVS is in a known-good state.
 
-   * success if the NVS check of the self-test sequence succeeds;
-   * failure otherwise.
+Procedure
+"""""""""
 
-..
-   status to CLI_C together with a message explaining the result (examples of
-   the CLI_H outputs: `SUCCESS: NVS self-test check succeeded`, `FAIL: NVS
-   self-test check failed with error code <error-code>`).
+#. Run the NVS check of the self-test sequence.
 
-TC-002: NVS check reports failure when NVS is faulty
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Expected results
+""""""""""""""""
 
-**Objective:** Verify that the NVS check correctly reports failure when NVS
-cannot be written to or read from.
+* NVS check of the self-test sequence succeeds.
 
-**Preconditions:** Inject a fault to NVS access.
+TC-002: Self-test NVS check reports failure when NVS is faulty
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Procedure:**
+Objective
+"""""""""
 
-#. CLI_C sends the `tc001` command to CLI_H.
-#. CLI_H injects a fault in a function that NVS access depends on.
-#. CLI_H runs a function that performs the NVS check of the self-test sequence
-   (`selftest_nvs()`).
-#. CLI_H parses the results of `selftest_nvs()` and outputs:
+Verify that the NVS check of the self-test sequence reports failure when read
+data does not match written data.
 
-   * success if the NVS check of the self-test sequence fails;
-   * failure otherwise.
+Preconditions
+"""""""""""""
 
-**Fault injection example**
+None.
 
-Assuming `selftest_nvs()` calls a function `nvs_read()`,
+Procedure
+"""""""""
+
+#. Inject a fault in the self-test NVS check so that the data read from a given
+   entry does not match the data that was just written.
+#. Run the NVS check of the self-test sequence.
+
+Expected results
+""""""""""""""""
+
+* NVS check of the self-test sequence fails with an error code that indicates
+  that read data does not match written data.
 
 TC-003: Mass storage check succeeds under normal conditions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

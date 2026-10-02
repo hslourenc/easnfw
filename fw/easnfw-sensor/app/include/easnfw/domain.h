@@ -17,5 +17,6 @@ int audio_sampling_acquire(struct easnfw_audio_block *block);
 int env_sampling_acquire(struct easnfw_environment_sample *sample);
 int audio_algo_process(const struct easnfw_audio_block *input,
 	struct easnfw_audio_block *output);
+int app_reset__full_reset(void);
 
 #endif
