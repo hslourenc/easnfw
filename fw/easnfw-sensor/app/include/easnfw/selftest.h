@@ -8,6 +8,12 @@ enum selftest_status {
 	SELFTEST_STATUS__NVS_RD_WR_NO_MATCH  = 1004,
 }
 
+/**
+ * @brief Run the NVS check of the self-test sequence.
+ *
+ * @return 0 if NVS is functional, a negative error code from enum
+ * selftest_status otherwise.
+ */
 int app_selftest__nvs(void);
 
 #endif
