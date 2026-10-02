@@ -1,6 +1,13 @@
 #ifndef EASNFW_SELFTEST_H
 #define EASNFW_SELFTEST_H
 
-int easnfw_selftest_run(void);
+enum selftest_status {
+	SELFTEST_STATUS__NVS_INIT_FAILED     = 1001,
+	SELFTEST_STATUS__NVS_WR_FAILED       = 1002,
+	SELFTEST_STATUS__NVS_RD_FAILED       = 1003,
+	SELFTEST_STATUS__NVS_RD_WR_NO_MATCH  = 1004,
+}
+
+int app_selftest__nvs(void);
 
 #endif
