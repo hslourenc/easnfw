@@ -18,9 +18,12 @@ For test cases, specifically, this is the flow:
 
    #. CLI_C issues the `reset` secondary command to CLI_H (needed even if for
       one-step test cases, to restore EASNFW to a clean state).
-   #. Upon receiving the `reset` secondary command from CLI_C, CLI_H resets
-      EASNFW.
-   #. CLI_C waits for a signal from CLI_H indicating that reset is complete.
+   #. Upon receiving the `reset` secondary command from CLI_C, CLI_H requests
+      EASNFW-SENSOR to reset itself and EASNFW-CLOUD. EASNFW-SENSOR requests
+      EASNFW-CLOUD reset through the `reset-fw-cloud` handshake (see
+      :ref:`section_handshake_reset_fw_cloud`).
+   #. CLI_H logs `TCSTATUS_RESETDONE` to CLI_C after the sensor reset
+      sequence is complete. CLI_C waits for this status before continuing.
    #. CLI_C issues the `tc [--step <step-number>] <test-case-number>` secondary
       command to CLI_H.
    #. CLI_H executes the test case step by exercising the applicable pieces of
@@ -60,6 +63,8 @@ Test case status log format: `TCSTATUS_<STATUS> - <INFO>`.
       user needs to perform additional verification.
    * `STEPDONE`: test case is not finished yet, CLI_H logs this status once
       it is done with the current step.
+   * `RESETDONE`: the reset sequence, including the coordinated reset of
+     EASNFW-CLOUD and EASNFW-SENSOR (when applicable), is complete.
 
 * `<INFO>`: provides a summary of the returned status with any additional data
   that may be useful to analyze the results.
@@ -258,41 +263,53 @@ Expected results
 TC-003: Mass storage check succeeds under normal conditions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Objective:** Verify that the mass storage read/write self-test check
-reports success when the SD card is present and functional.
+Objective
+"""""""""
 
-**Preconditions:** Mass storage is in a known-good state: SD card is inserted
-and functional.
+Verify that the mass storage check of the self-test sequence reports success
+when the SD card is present and functional.
 
-**Procedure:**
+Preconditions
+"""""""""""""
 
-1. Trigger the mass storage check of the self-test sequence.
-2. Observe the returned result and the USB log output.
-3. Read the mass storage contents.
+Mass storage is in a known-good state: the SD card is inserted and functional.
 
-.. note::
+Procedure
+"""""""""
 
-   This test case implies the need for a CLI command to dump mass storage
-   contents.
+#. Run the mass storage check of the self-test sequence.
 
-**Expected result:** The check reports success after data was written to and
-read back from mass storage correctly.
+Expected results
+""""""""""""""""
+
+* Mass storage check of the self-test sequence succeeds.
 
 TC-004: Mass storage check reports failure when the SD card is absent
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Objective:** Verify that the mass storage check reports failure when
-the SD card is missing or unresponsive.
+Objective
+"""""""""
 
-**Procedure:**
+Verify that the mass storage check of the self-test sequence reports failure
+when the SD card is missing or unresponsive.
 
-1. Remove the SD card or otherwise inject a mass storage fault via the test
-   bench.
-2. Trigger the mass storage check of the self-test sequence.
-3. Observe the returned result and the USB log output.
+Preconditions
+"""""""""""""
 
-**Expected result:** The check reports failure after data could not be written
-to mass storage.
+None.
+
+Procedure
+"""""""""
+
+#. Inject a fault in the self-test mass storage check so that the read data
+   does not match the written data.
+#. Run the mass storage check of the self-test sequence.
+
+Expected results
+""""""""""""""""
+
+* The mass storage check fails with an error code that indicates that the
+  mass storage write failed.
 
 TC-005: Audio sensor sampling check succeeds under normal conditions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
