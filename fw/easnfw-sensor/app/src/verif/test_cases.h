@@ -18,8 +18,6 @@ void app_test_cases__tc003(unsigned int test_case_step);
 void app_test_cases__tc004(unsigned int test_case_step);
 void app_test_cases__clear_all_faults(void);
 
-void app_verif__notify_reset_done(void);
-
 #endif /* CONFIG_EASNFW_VERIFICATION_CODE */
 
 #endif
