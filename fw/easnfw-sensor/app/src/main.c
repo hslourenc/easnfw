@@ -5,7 +5,7 @@
 #include <easnfw/pipeline.h>
 #include <easnfw/selftest.h>
 
-#if CONFIG_EASNFW_VERIFICATION_CODE
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
 #include "verif/test_cases.h"
 #endif
 
@@ -21,7 +21,7 @@ int main(void)
 {
 	LOG_INF("EASNFW-SENSOR starting");
 
-#if CONFIG_EASNFW_VERIFICATION_CODE
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
 	app_verif__notify_reset_done();
 #endif
 

@@ -3,7 +3,7 @@
 
 #include <easnfw/config.h>
 
-#if CONFIG_EASNFW_VERIFICATION_CODE
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
 
 struct injected_faults {
 	int selftest_nvs_fault;

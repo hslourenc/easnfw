@@ -5,7 +5,7 @@
 #include <easnfw/platform.h>
 #include <easnfw/selftest.h>
 
-#if CONFIG_EASNFW_VERIFICATION_CODE
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
 #include "../verif/test_cases.h"
 #endif /* CONFIG_EASNFW_VERIFICATION_CODE */
 
@@ -60,7 +60,7 @@ int app_selftest__nvs(void)
 		LOG_ERR("NVS check failed: NVS read failed, error %d", err);
 		return -SELFTEST_STATUS__NVS_RD_FAILED;
 	}
-#if CONFIG_EASNFW_VERIFICATION_CODE
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
 	if (faults.selftest_nvs_fault != 0) {
 		read[0] = ++write[0];
 		read[1] = ++write[1];
@@ -102,7 +102,7 @@ int app_selftest__mass_storage(void)
 
 	++write[0];
 	++write[1];
-#if CONFIG_EASNFW_VERIFICATION_CODE
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
 	if (faults.selftest_mass_storage_fault != 0) {
 		LOG_ERR("Mass-storage check failed: injected write failure");
 		return -SELFTEST_STATUS__MASS_STORAGE_WR_FAILED;

@@ -3,7 +3,7 @@
 #include <easnfw/selftest.h>
 #include "test_cases.h"
 
-#if CONFIG_EASNFW_VERIFICATION_CODE
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
 
 LOG_MODULE_REGISTER(test_cases, LOG_LEVEL_INF);
 

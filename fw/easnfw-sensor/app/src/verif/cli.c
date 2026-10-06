@@ -10,13 +10,11 @@
 #include <easnfw/config.h>
 #include "test_cases.h"
 
-#if CONFIG_EASNFW_VERIFICATION_CODE
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
 
 LOG_MODULE_REGISTER(verif_cli, LOG_LEVEL_INF);
 
-static uint32_t reset_pending __noinit;
-
-#define RESET_PENDING_MAGIC 0x45534E52U
+static uint32_t reset_pending = 0;
 
 static int cmd_tc(const struct shell *shell, size_t argc, char **argv)
 {
@@ -25,8 +23,7 @@ static int cmd_tc(const struct shell *shell, size_t argc, char **argv)
 	unsigned long test_case_step = 1U;
 
 	test_case = strtoul(argv[1], &end, 10);
-	if (*argv[1] == '\0' || *end != '\0' || test_case < 1U ||
-	    test_case > 4U) {
+	if (*argv[1] == '\0' || *end != '\0' || test_case < 1U || test_case > 4U) {
 		shell_error(shell, "test case must be an integer from 1 to 4");
 		return -EINVAL;
 	}
