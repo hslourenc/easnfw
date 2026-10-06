@@ -1,8 +1,13 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
+#include <easnfw/config.h>
 #include <easnfw/pipeline.h>
 #include <easnfw/selftest.h>
+
+#if CONFIG_EASNFW_VERIFICATION_CODE
+#include "verif/test_cases.h"
+#endif
 
 LOG_MODULE_REGISTER(easnfw_sensor, LOG_LEVEL_INF);
 
@@ -16,7 +21,11 @@ int main(void)
 {
 	LOG_INF("EASNFW-SENSOR starting");
 
-	if (easnfw_selftest_run() != 0) {
+#if CONFIG_EASNFW_VERIFICATION_CODE
+	app_verif__notify_reset_done();
+#endif
+
+	if (app_selftest__run() != 0) {
 		LOG_ERR("Sensor self-test failed");
 		/* EASNFW_TODO: Store failures and follow the reset policy. */
 		return -1;

@@ -16,16 +16,16 @@ For test cases, specifically, this is the flow:
    EASNFW is needed in the middle of the test case.
 #. For each test case step:
 
-   #. CLI_C issues the `reset` secondary command to CLI_H (needed even if for
-      one-step test cases, to restore EASNFW to a clean state).
-   #. Upon receiving the `reset` secondary command from CLI_C, CLI_H requests
-      EASNFW-SENSOR to reset itself and EASNFW-CLOUD. EASNFW-SENSOR requests
-      EASNFW-CLOUD reset through the `reset-fw-cloud` handshake (see
-      :ref:`section_handshake_reset_fw_cloud`).
+   #. CLI_C issues the `easnfwcli2_reset` secondary command to CLI_H (needed
+      even if for one-step test cases, to restore EASNFW to a clean state).
+   #. Upon receiving the `easnfwcli2_reset` secondary command from CLI_C, CLI_H
+      requests EASNFW-SENSOR to reset itself and EASNFW-CLOUD. EASNFW-SENSOR
+      requests EASNFW-CLOUD to reset through the `reset-fw-cloud` handshake
+      (see :ref:`section_handshake_reset_fw_cloud`).
    #. CLI_H logs `TCSTATUS_RESETDONE` to CLI_C after the sensor reset
       sequence is complete. CLI_C waits for this status before continuing.
-   #. CLI_C issues the `tc [--step <step-number>] <test-case-number>` secondary
-      command to CLI_H.
+   #. CLI_C issues the `easnfwcli2_tc <test-case-number> [<test-case-step>]`
+      secondary command to CLI_H.
    #. CLI_H executes the test case step by exercising the applicable pieces of
       code from EASNFW and verifying the produced output.
    #. CLI_H logs the test case status to CLI_C indicating the result of the test
@@ -194,9 +194,38 @@ was run. This new directory is structured as follows:
 Secondary Commands
 ==================
 
-**Secondary commands format**: `easncli2 <command>`
+easnfwcli2_tc
+-------------
 
----------
+Format
+^^^^^^
+
+`easnfwcli2_tc <test-case-number> [test-case-step]`
+
+Description
+^^^^^^^^^^^
+
+Executes the test case specified by `<test-case-number>`.
+
+The optional `<test-case-step>` selects a specific step when the test case is
+split into multiple steps. If it is omitted, CLI_H executes the first step.
+
+easnfwcli2_reset
+----------------
+
+Format
+^^^^^^
+
+`easnfwcli2_reset`
+
+Description
+^^^^^^^^^^^
+
+Upon receiving this command, CLI_H requests a complete EASNFW reset to
+EASNFW-SENSOR. EASNFW-SENSOR requests EASNFW-CLOUD to reset through the
+`reset-fw-cloud` handshake (see :ref:`section_handshake_reset_fw_cloud`), waits
+for it to reset, and then EASNFW-SENSOR resets itself.
+
 
 HIL Verification Image Test Cases
 =================================
