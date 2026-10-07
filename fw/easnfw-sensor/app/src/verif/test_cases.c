@@ -17,7 +17,7 @@ void app_test_cases__tc001(unsigned int test_case_step)
 {
 	(void)test_case_step;
 	app_test_cases__clear_all_faults();
-	int err = app_selftest__nvs();
+	int err = selftest__nvs();
 	if (err < 0) {
 		LOG_ERR("TCSTATUS_FAIL: self-test NVS check failed, error %d", err);
 	} else {
@@ -30,13 +30,13 @@ void app_test_cases__tc002(unsigned int test_case_step)
 	(void)test_case_step;
 	app_test_cases__clear_all_faults();
 	app_test_cases__set_selftest_nvs_fault();
-	int err = app_selftest__nvs();
-	if (err != -SELFTEST_STATUS__NVS_RD_WR_NO_MATCH) {
+	int err = selftest__nvs();
+	if (err != -EASNFW_STATUS__SELFTEST_NVS_RD_WR_NO_MATCH) {
 		LOG_ERR("TCSTATUS_FAIL: self-test NVS check did not fail with error %d and returned %d instead",
-			-SELFTEST_STATUS__NVS_RD_WR_NO_MATCH, err);
+			-EASNFW_STATUS__SELFTEST_NVS_RD_WR_NO_MATCH, err);
 	} else {
 		LOG_INF("TCSTATUS_SUCCESS: self-test NVS failed with error %d as expected",
-			-SELFTEST_STATUS__NVS_RD_WR_NO_MATCH);
+			-EASNFW_STATUS__SELFTEST_NVS_RD_WR_NO_MATCH);
 	}
 }
 
@@ -44,7 +44,7 @@ void app_test_cases__tc003(unsigned int test_case_step)
 {
 	(void)test_case_step;
 	app_test_cases__clear_all_faults();
-	int err = app_selftest__mass_storage();
+	int err = selftest__mass_storage();
 	if (err < 0) {
 		LOG_ERR("TCSTATUS_FAIL: mass-storage check failed, error %d", err);
 	} else {
@@ -57,13 +57,13 @@ void app_test_cases__tc004(unsigned int test_case_step)
 	(void)test_case_step;
 	app_test_cases__clear_all_faults();
 	app_test_cases__set_selftest_mass_storage_fault();
-	int err = app_selftest__mass_storage();
-	if (err != -SELFTEST_STATUS__MASS_STORAGE_WR_FAILED) {
+	int err = selftest__mass_storage();
+	if (err != -EASNFW_STATUS__SELFTEST_MASS_STORAGE_WR_FAILED) {
 		LOG_ERR("TCSTATUS_FAIL: mass-storage check did not fail with error %d and returned %d instead",
-			-SELFTEST_STATUS__MASS_STORAGE_WR_FAILED, err);
+			-EASNFW_STATUS__SELFTEST_MASS_STORAGE_WR_FAILED, err);
 	} else {
 		LOG_INF("TCSTATUS_SUCCESS: mass-storage check failed with error %d as expected",
-			-SELFTEST_STATUS__MASS_STORAGE_WR_FAILED);
+			-EASNFW_STATUS__SELFTEST_MASS_STORAGE_WR_FAILED);
 	}
 }
 

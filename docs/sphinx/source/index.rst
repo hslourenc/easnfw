@@ -15,7 +15,7 @@ EASNFW
    chapters/introduction
    chapters/requirements
    chapters/verification
-   chapters/inter_fw_link
+   chapters/interfw_link
    chapters/architecture
    chapters/design
    chapters/cloud_backend

@@ -88,7 +88,7 @@ void cli__wait_for_shell_ready(void)
 	LOG_INF("TCSTATUS_RESETDONE - reset complete");
 }
 
-SHELL_CMD_ARG_REGISTER(easnfwcli2_tc, NULL, "Run a verification test case", cli__cmd_tc, 2, 1);
+SHELL_CMD_ARG_REGISTER(easnfwcli2_tc, NULL, "Run a test case", cli__cmd_tc, 2, 1);
 SHELL_CMD_REGISTER(easnfwcli2_reset, NULL, "Reset the application", cli__cmd_reset);
 
 #endif /* CONFIG_EASNFW_VERIFICATION_CODE */

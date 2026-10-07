@@ -23,7 +23,7 @@ int main(void)
 	cli__wait_for_shell_ready();
 #else
 	LOG_INF("EASNFW-SENSOR starting");
-	if (app_selftest__run() != 0) {
+	if (selftest__run() != 0) {
 		LOG_ERR("Sensor self-test failed");
 		/* EASNFW_TODO: Store failures and follow the reset policy. */
 		return -1;

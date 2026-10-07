@@ -9,8 +9,8 @@ coordinate the application across the two firmware components.
 Both components treat a command as complete only after receiving an
 acknowledgement and the corresponding response when a response is expected.
 
-EASNFW-CLOUD to EASNFW-SENSOR Handshakes
-========================================
+EASNFW-SENSOR to EASNFW-CLOUD Commands
+======================================
 
 .. _section_handshake_reset_fw_cloud:
 
