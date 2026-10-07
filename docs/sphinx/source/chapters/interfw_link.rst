@@ -9,6 +9,18 @@ coordinate the application across the two firmware components.
 Both components treat a command as complete only after receiving an
 acknowledgement and the corresponding response when a response is expected.
 
+Hardware connection
+===================
+
+On EASNFW-SENSOR:
+
+TXD: P1.09
+RXD: P1.08
+CTS: P1.10
+RTS: P1.11
+
+(UART2)
+
 EASNFW-SENSOR to EASNFW-CLOUD Commands
 ======================================
 
