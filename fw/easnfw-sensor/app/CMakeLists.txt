@@ -24,3 +24,8 @@ target_sources(app PRIVATE
 	src/shared/ecoacoustic_record.c
 	src/shared/retry.c
 )
+
+target_sources_ifdef(CONFIG_EASNFW_IMAGE_TYPE_HIL app PRIVATE
+	src/verif/cli.c
+	src/verif/test_cases.c
+)

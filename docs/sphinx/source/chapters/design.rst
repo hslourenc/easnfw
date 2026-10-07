@@ -39,9 +39,9 @@ by both components:
   EASNFW-CLOUD, mainly data structure and protocol definitions that need
   to stay consistent on both ends of the UART link.
 
-Logging (REQ-013) is not modeled as a separate module: each module
+Logging (REQ-040) is not modeled as a separate module: each module
 registers its own Zephyr log module (``LOG_MODULE_REGISTER``) and uses
-the logging subsystem directly. Power management (REQ-012) is likewise
+the logging subsystem directly. Power management (REQ-039) is likewise
 not a standalone module at this stage; it is expected to rely on Zephyr's
 power management subsystem together with threads naturally idling while
 blocked on message queues.
@@ -69,7 +69,11 @@ Shared Modules
    * - ``retry``
      - Shared
      - Generic exponential backoff/retry utility. Used by ``cloud_tx``
-       (REQ-011); kept generic in case other retry needs arise later.
+       (REQ-037); kept generic in case other retry needs arise later.
+   * - ``fault_state``
+     - Shared
+     - Defines capability availability, fault classification, and recovery
+       notifications exchanged between application modules.
 
 EASNFW-SENSOR Modules
 ========================
@@ -87,21 +91,23 @@ Application layer
    * - ``sampling``
      - Sampling
      - Runs the self-test sequence at boot, then loops acquiring audio
-       and environmental data per track (REQ-001 to REQ-005).
+       and environmental data per track (REQ-023, REQ-029, REQ-031,
+       REQ-032).
    * - ``audio_processing``
      - Processing
      - Consumes audio blocks and runs the audio processing algorithm on
-       each (REQ-006).
+       each (REQ-033).
    * - ``storage``
      - Storage
      - Persists processed blocks and environmental data/timestamps,
-       assembles ecoacoustic records, removes them once delivery is
-       confirmed, and stores failure details to NVS (REQ-004, REQ-007,
-       REQ-008, REQ-010, REQ-011).
+       assembles ecoacoustic records,        removes them once durable delivery is
+       confirmed, preserves failed records, and
+       stores reset history and failure details to NVS (REQ-025, REQ-027,
+       REQ-034, REQ-035, REQ-036, REQ-037).
    * - ``cloud_link``
      - Transmission
      - Sends payloads to EASNFW-CLOUD and reports delivery outcomes back
-       to ``storage`` (REQ-002, REQ-003, REQ-009).
+       to ``storage`` (REQ-024, REQ-026, REQ-037).
 
 Domain layer
 --------------
@@ -123,7 +129,8 @@ Domain layer
        ``audio_processing``.
    * - ``selftest``
      - Implements the individual self-test checks and their aggregation
-       (REQ-001). Used by ``sampling`` during initialization.
+       (REQ-023), including capability checks. Used by
+       ``sampling`` during initialization.
 
 Driver / platform layer
 --------------------------
@@ -167,16 +174,17 @@ Application layer
    * - ``sensor_link``
      - Receiving
      - Receives payloads from EASNFW-SENSOR over UART and relays delivery
-       acknowledgements back to it (REQ-002, REQ-003, REQ-009).
+       acknowledgements back to it (REQ-024, REQ-026).
    * - ``payload_assembler``
      - Assembling
      - Reassembles and validates UART fragments and adds the transport envelope
        needed by the cloud platform. The canonical record itself is assembled
-       by EASNFW-SENSOR (REQ-002, REQ-003, REQ-009, REQ-014, REQ-015).
+       by EASNFW-SENSOR (REQ-034).
    * - ``cloud_tx``
      - Transmitting
      - Transmits payloads to the cloud platform, with retry/backoff on
-       failure (REQ-009, REQ-011).
+       failure and reports the outcome back to EASNFW-SENSOR
+       (REQ-026, REQ-037).
 
 Domain layer
 --------------
@@ -298,9 +306,9 @@ Open Items and Assumptions
   EASNFW-CLOUD's backup storage is still TBD. If EASNFW-CLOUD gains its
   own persistent storage, a corresponding module would be added there.
 * ``audio_algo`` is a placeholder pending definition of the audio
-  processing algorithm (REQ-006).
+  processing algorithm (REQ-033).
 * The exact mechanics of the self-test check that verifies data can be
-  transmitted to the cloud platform (REQ-001), which necessarily
+  transmitted to the cloud platform (REQ-023), which necessarily
   involves both components, are TBD.
 
 Audio Interface Decision

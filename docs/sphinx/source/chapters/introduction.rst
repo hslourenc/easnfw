@@ -267,11 +267,3 @@ data received from EASNFW-SENSOR and a transport envelope with schema version,
 node identity, delivery attempt information, and relevant network metadata.
 Cloud payload formatting is a transport concern and does not define the
 canonical on-device ecoacoustic record format.
-
-Power-on Log
-------------
-
-A power-on log consists of the respective revisions of EASNFW-SENSOR and
-EASNFW-CLOUD, the reason why the device was last reset, and the results of the
-self-test sequence. Power-on logs are transmitted to the cloud through power-on
-log payloads.

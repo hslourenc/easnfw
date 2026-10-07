@@ -1,3 +1,5 @@
+/* EASNFW_TODO: break this down into multiple files, one per domain .c file */
+
 #ifndef EASNFW_DOMAIN_H
 #define EASNFW_DOMAIN_H
 

@@ -32,8 +32,8 @@ Design Principles
   ownership transfer. A producer must not reuse a buffer until the consumer
   releases it, and queue exhaustion must result in a reported backpressure or
   loss condition rather than silent data loss.
-* Self-test (REQ-001 to REQ-004), power management (REQ-012), and logging
-  (REQ-013) are cross-cutting concerns and are not modeled as dedicated
+* Self-test (REQ-023), power management (REQ-039), and logging
+  (REQ-040) are cross-cutting concerns and are not modeled as dedicated
   application threads at this stage:
 
   * The self-test sequence runs during system initialization, in each
@@ -43,6 +43,26 @@ Design Principles
   * Power management is expected to mostly fall out of threads blocking on
     message queues when idle, complemented by Zephyr's power management
     subsystem; no specific energy-saving strategy is defined.
+
+Fault handling and degraded operation
+=====================================
+
+EASNFW-SENSOR and EASNFW-CLOUD shall coordinate entry into diagnostic state.
+
+The Storage thread is responsible for preserving incomplete and undelivered
+records and for preventing records from becoming eligible for transmission until
+they are complete. The Transmission and Receiving threads are responsible for
+distinguishing link acknowledgement from cloud commit acknowledgement and for
+making an unacknowledged payload available for safe retransmission. No thread
+shall make a record appear delivered solely because the other component received
+a link frame.
+
+When diagnostic state requires acquisition to stop, the Sampling thread shall
+stop starting new data-acquisition cycles. The cloud-side transmission path may
+remain active to check for and fetch a firmware update. Fault state and recovery
+notifications shall be exchanged through the existing message queues or an
+equivalent application-level path; the specific scheduling and synchronization
+mechanism remains an implementation detail.
 
 EASNFW-SENSOR
 ===============
@@ -62,25 +82,25 @@ Threads
        initialization, runs the self-test sequence, then loops
        acquiring audio and environmental data for each track and
        forwarding it downstream.
-     - REQ-001 to REQ-004, REQ-005
+     - REQ-023, REQ-029, REQ-031, REQ-032
    * - Processing
      - Consumes blocks of audio samples and runs the (TBD) audio
        processing algorithm on each block.
-     - REQ-006
+     - REQ-033
    * - Storage
      - Sole owner of mass storage and NVS. Persists processed audio
        blocks and environmental data/timestamps, assembles and atomically
-       commits canonical ecoacoustic records, and applies the retention policy
-       once durable cloud delivery has been confirmed. Also stores self-test
+       commits canonical ecoacoustic records, and removes them once durable
+       cloud delivery has been confirmed. Also stores self-test
        and transmission failure details to NVS.
-     - REQ-004, REQ-007, REQ-008, REQ-010, REQ-011
+     - REQ-025, REQ-027, REQ-034, REQ-035, REQ-036, REQ-037
    * - Transmission
      - Sole owner of the UART link to EASNFW-CLOUD. Sends the power-on
        log, pending ecoacoustic records, and newly committed records to
        EASNFW-CLOUD using versioned and checksummed fragments. Reports both
        inter-component receipt and durable cloud-delivery outcomes back to the
        Storage thread.
-     - REQ-002, REQ-003, REQ-009, REQ-011
+     - REQ-024, REQ-026, REQ-037
 
 Message queues
 ----------------
@@ -115,8 +135,8 @@ Message queues
      - Transmission
      - Storage
      - Delivery outcome (success/failure) for a previously queued
-       payload, so Storage can remove it (REQ-010) or handle the
-       failure (REQ-011).
+       payload, so Storage can remove it (REQ-035) or handle the
+       failure (REQ-037).
 
 EASNFW-CLOUD
 ==============
@@ -135,18 +155,18 @@ Threads
      - Sole owner of the CLOUD-side UART link. Receives payloads sent by
        EASNFW-SENSOR and forwards them for assembly. Relays delivery
        acknowledgements back to EASNFW-SENSOR once available.
-     - REQ-002, REQ-003, REQ-009
+     - REQ-024, REQ-026
    * - Assembling
      - Reassembles and validates UART fragments, then wraps the canonical
        record in the transport envelope expected by the cloud platform. It
        does not redefine or reconstruct the scientific record.
-     - REQ-002, REQ-003, REQ-009
+     - REQ-024, REQ-026
    * - Transmitting
      - Sole owner of the LTE-M link to the cloud platform. Transmits
        assembled payloads, implements the retry-with-backoff behavior
        on failure, and reports the outcome back to the Receiving
        thread.
-     - REQ-009, REQ-011
+     - REQ-026, REQ-037
 
 Message queues
 ----------------
@@ -193,7 +213,7 @@ levels:
 Only the cloud commit acknowledgement permits Storage to mark a record as
 delivered. If either component resets or an acknowledgement is lost, the same
 ``record_id`` may be retransmitted safely because cloud delivery is idempotent
-(REQ-016).
+(REQ-035).
 
 Data Representations
 ====================
@@ -264,10 +284,10 @@ Open Items
 ============
 
 * Audio processing algorithm and its threading/timing implications on the
-  Sampling/Processing/Storage threads (REQ-006).
+  Sampling/Processing/Storage threads (REQ-033).
 * Binary encoding of the canonical record and UART frames (CBOR is the initial
   candidate).
 * Cloud platform payload envelope and endpoint contract, owned by the
   Assembling and Transmitting threads.
-* Power management strategy (REQ-012) and its interaction with thread
+* Power management strategy (REQ-039) and its interaction with thread
   scheduling.
