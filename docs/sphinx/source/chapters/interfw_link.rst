@@ -19,7 +19,8 @@ RXD: P1.08
 CTS: P1.10
 RTS: P1.11
 
-(UART2)
+(UART2, need to ensure Audio DK solder bridge SB20 is intact for UART2
+RTS/CTS.)
 
 EASNFW-SENSOR to EASNFW-CLOUD Commands
 ======================================

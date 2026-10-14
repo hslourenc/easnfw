@@ -17,9 +17,7 @@ config EASNFW_IMAGE_TYPE_DEBUG
 
 config EASNFW_IMAGE_TYPE_HIL
 	bool "HIL verification image"
-	select SHELL
-	select SHELL_BACKEND_SERIAL
-	select REBOOT
+	depends on SHELL && SHELL_BACKEND_SERIAL && REBOOT
 
 endchoice
 
@@ -27,5 +25,40 @@ config EASNFW_VERIFICATION_CODE
 	def_bool EASNFW_IMAGE_TYPE_HIL
 
 endmenu
+
+menuconfig EASNFW_INTERFW_LINK_UART
+	bool "EASNFW UART link"
+	default y
+	depends on SERIAL && UART_ASYNC_API && RING_BUFFER
+
+if EASNFW_INTERFW_LINK_UART
+
+config EASNFW_INTERFW_LINK_UART_MAX_PAYLOAD
+	int "Max payload bytes per frame"
+	default 512
+	range 16 4096
+
+config EASNFW_INTERFW_LINK_UART_ACK_TIMEOUT_MS
+	int "ACK timeout (ms)"
+	default 50
+	range 5 5000
+
+config EASNFW_INTERFW_LINK_UART_MAX_RETRIES
+	int "Max retransmissions"
+	default 10
+	range 0 20
+
+config EASNFW_INTERFW_LINK_UART_RX_INTERBYTE_TIMEOUT_MS
+	int "RX inter-byte timeout (ms)"
+	default 50
+	range 5 1000
+
+config EASNFW_INTERFW_LINK_UART_RX_RING_BUF_SIZE
+	int "RX ring buffer size (bytes)"
+	default 2048
+	help
+	  Size for worst-case service latency at the configured baud rate.
+
+endif # EASNFW_INTERFW_LINK_UART
 
 source "Kconfig.zephyr"

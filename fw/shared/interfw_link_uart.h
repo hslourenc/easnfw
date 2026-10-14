@@ -25,12 +25,11 @@
  *
  *   +------+------+--------+-----+-------+------+----------+-----------+------+
  *   | SOF  | TYPE | CMD_ID | SEQ | FLAGS | LEN  | PAYLOAD  |   CRC16   |
- *   | | 1 B  | 1 B  |  1 B   | 1 B |  1 B  | 2 B  | 0..LEN B |    2 B    |
- *   |
+ *   | 1 B  | 1 B  |  1 B   | 1 B |  1 B  | 2 B  | 0..LEN B |    2 B    |
  *   +------+------+--------+-----+-------+------+----------+-----------+------+
  *   |<------------- header (7 bytes) ---------->|
  *
- *   - SOF     : fixed 0xA5, used for (re)synchronisation.
+ *   - SOF     : start of frame, fixed 0xA5.
  *   - TYPE    : EASN_FRAME_CMD or EASN_FRAME_ACK.
  *   - CMD_ID  : command identifier (for ACK: the command being acknowledged).
  *   - SEQ     : sequence number chosen by the sender of a CMD; the ACK echoes
@@ -129,7 +128,7 @@
 /* ========================================================================== */
 
 #define INTERFW_LINK_UART_SOF                   0xA5u
-#define INTERFW_LINK_UART_HDR_SIZE              7u      /* SOF..LEN                   */
+#define INTERFW_LINK_UART_HDR_SIZE              7u      /* SOF..LEN */
 #define INTERFW_LINK_UART_CRC_SIZE              2u
 #define INTERFW_LINK_UART_MAX_FRAME_SIZE \
     (INTERFW_LINK_UART_HDR_SIZE + INTERFW_LINK_UART_MAX_PAYLOAD + INTERFW_LINK_UART_CRC_SIZE)
@@ -173,54 +172,43 @@ typedef enum {
 
 /** Commands implemented by both firmware components. */
 typedef enum {
-    EASN_CMD_PING           = 0x01, /**< No payload. Link liveness check.            */
-    EASN_CMD_GET_INFO       = 0x02, /**< No payload. Peer answers with EASN_CMD_INFO. */
-    EASN_CMD_INFO           = 0x03, /**< easn_info_t. Reply to GET_INFO.             */
-    EASN_CMD_RESET_LINK     = 0x04  /**< No payload. Reset seq numbers/transfers.    */
+    INTERFW_LINK_CMD_COMMON__PING         = 0x01, /**< Link liveness check. */
 } easn_common_cmd_t;
 
 /** Commands EXPOSED BY EASNFW-SENSOR (CLOUD -> SENSOR). */
 typedef enum {
-    SENSOR_CMD_START_SAMPLING   = 0x10, /**< easn_start_sampling_t                    */
-    SENSOR_CMD_STOP_SAMPLING    = 0x11, /**< No payload                               */
-    SENSOR_CMD_SET_CONFIG       = 0x12, /**< Config blob (may be large, fragmented)   */
-    SENSOR_CMD_GET_CONFIG       = 0x13, /**< No payload. Reply: CLOUD_CMD_CONFIG_REPORT */
-    SENSOR_CMD_SET_TIME         = 0x14, /**< easn_time_t                              */
-    SENSOR_CMD_REBOOT           = 0x15, /**< No payload                               */
-    SENSOR_CMD_FW_UPDATE_DATA   = 0x16  /**< Firmware image (LARGE, fragmented)       */
+    INTERFW_LINK_CMD_SENSOR__CLOUD_READY  = 0x10, /**< EASNFW-CLOUD ready after reset. */
 } sensor_cmd_t;
 
 /** Commands EXPOSED BY EASNFW-CLOUD (SENSOR -> CLOUD). */
 typedef enum {
-    CLOUD_CMD_SAMPLE_REPORT     = 0x80, /**< Batch of samples (LARGE, fragmented)     */
-    CLOUD_CMD_EVENT_NOTIFY      = 0x81, /**< easn_event_t                             */
-    CLOUD_CMD_STATUS_REPORT     = 0x82, /**< easn_sensor_status_t                     */
-    CLOUD_CMD_CONFIG_REPORT     = 0x83, /**< Config blob (may be large, fragmented)   */
-    CLOUD_CMD_LOG_UPLOAD        = 0x84, /**< Text/binary log (LARGE, fragmented)      */
-    CLOUD_CMD_TIME_REQUEST      = 0x85  /**< No payload. Reply: SENSOR_CMD_SET_TIME   */
+    INTERFW_LINK_CMD_CLOUD__RESET         = 0x80, /**< RESET EASNFW-CLOUD. */
 } cloud_cmd_t;
 
 /* ========================================================================== */
 /*  ACK status codes                                                          */
 /* ========================================================================== */
 
+/* the following statuses are placeholders, not all of them will be used necessarily
+   and other ones may need to be added */
 typedef enum {
-    EASN_ST_OK              = 0x00, /**< Received and accepted                    */
-    EASN_ST_UNKNOWN_CMD     = 0x01, /**< Command ID not exposed by this firmware  */
-    EASN_ST_BAD_LEN         = 0x02, /**< Payload length invalid for this command  */
-    EASN_ST_BAD_PARAM       = 0x03, /**< Payload content invalid                  */
-    EASN_ST_BUSY            = 0x04, /**< Cannot handle now, sender may retry later */
-    EASN_ST_NOT_SUPPORTED   = 0x05, /**< Known command but not available right now */
-    EASN_ST_BAD_OFFSET      = 0x06, /**< Fragment offset != expected (see next_offset) */
-    EASN_ST_NO_MEMORY       = 0x07, /**< Cannot store the incoming data           */
-    EASN_ST_TRANSFER_ERR    = 0x08, /**< Transfer-level failure (bad total size, id mismatch, CRC of whole image...) */
-    EASN_ST_INTERNAL_ERR    = 0xFF  /**< Unspecified error in the receiver        */
+    IFL_STAT__OK              = 0x00, /**< Received and accepted                    */
+    IFL_STAT__UNKNOWN_CMD     = 0x01, /**< Command ID not exposed by this firmware  */
+    IFL_STAT__BAD_LEN         = 0x02, /**< Payload length invalid for this command  */
+    IFL_STAT__BAD_PARAM       = 0x03, /**< Payload content invalid                  */
+    IFL_STAT__BUSY            = 0x04, /**< Cannot handle now, sender may retry later */
+    IFL_STAT__NOT_SUPPORTED   = 0x05, /**< Known command but not available right now */
+    IFL_STAT__BAD_OFFSET      = 0x06, /**< Fragment offset != expected (see next_offset) */
+    IFL_STAT__NO_MEMORY       = 0x07, /**< Cannot store the incoming data           */
+    IFL_STAT__TRANSFER_ERR    = 0x08, /**< Transfer-level failure (bad total size, id mismatch, CRC of whole image...) */
+    IFL_STAT__INTERNAL_ERR    = 0xFF  /**< Unspecified error in the receiver        */
 } easn_status_t;
 
 /* ========================================================================== */
 /*  Wire structures                                                           */
 /* ========================================================================== */
 
+/* stopped review here */
 #if defined(__GNUC__) || defined(__clang__)
 #  define EASN_PACKED __attribute__((packed))
 #else

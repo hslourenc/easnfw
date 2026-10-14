@@ -1,0 +1,1 @@
+const struct device *interfw_link_uart = DEVICE_DT_GET(DT_CHOSEN(easnfw_link_uart));
