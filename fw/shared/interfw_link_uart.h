@@ -1,6 +1,6 @@
 /**
  * @file    interfw_link_uart.h
- * @brief   UART protocol for the Inter-FW link.
+ * @brief   UART protocol for the Inter-FW link (IFL).
  *
  * ============================================================================
  *  OVERVIEW
@@ -34,7 +34,9 @@
  *   - CMD_ID  : command identifier (for ACK: the command being acknowledged).
  *   - SEQ     : sequence number chosen by the sender of a CMD; the ACK echoes
  *               it. Increments by 1 (mod 256) for every NEW CMD frame;
- *               retransmissions reuse the same SEQ.
+ *               retransmissions reuse the same SEQ. Used by sender to verify
+                 to which command an ACK belongs to. Used by receiver to detect
+                 duplicate commands.
  *   - FLAGS   : see EASN_FLAG_xxx.
  *   - LEN     : payload length in bytes (<= INTERFW_LINK_UART_MAX_PAYLOAD).
  *   - CRC16   : CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflection,
@@ -54,7 +56,7 @@
  *  - If no ACK within INTERFW_LINK_UART_ACK_TIMEOUT_MS, the sender retransmits
  *    the frame (same SEQ) up to INTERFW_LINK_UART_MAX_RETRIES times, then
  *    reports EASN_ERR_TIMEOUT to the application.
- *  - The ACK payload carries a status code (easn_status_t). The status says
+ *  - The ACK payload carries a status code (ifl_status_t). The status says
  *    whether the command was accepted/executed or rejected (unknown command,
  *    busy, bad parameters, ...).
  *  - Duplicate detection: a receiver that gets a CMD with the same SEQ as the
@@ -172,25 +174,31 @@ typedef enum {
 
 /** Commands implemented by both firmware components. */
 typedef enum {
-    INTERFW_LINK_CMD_COMMON__PING         = 0x01, /**< Link liveness check. */
-} easn_common_cmd_t;
+    IFL_CMD_COMMON__RANGE_START        = 0x01, /**< Not a command, just helper to check commands ranges */
+    IFL_CMD_COMMON__PING               = 0x01, /**< Link liveness check. */
+    IFL_CMD_COMMON__RANGE_END          = 0x0F, /**< Not a command, just helper to check commands ranges */
+} ifl_common_cmd_t;
 
 /** Commands EXPOSED BY EASNFW-SENSOR (CLOUD -> SENSOR). */
 typedef enum {
-    INTERFW_LINK_CMD_SENSOR__CLOUD_READY  = 0x10, /**< EASNFW-CLOUD ready after reset. */
-} sensor_cmd_t;
+    IFL_CMD_SENSOR__RANGE_START  = 0x10, /**<  Not a command, just helper to check commands ranges */
+    IFL_CMD_SENSOR__CLOUD_READY  = 0x10, /**< EASNFW-CLOUD ready after reset. */
+    IFL_CMD_SENSOR__RANGE_END    = 0x7F, /**<  Not a command, just helper to check commands ranges. */
+} ifl_sensor_cmd_t;
 
 /** Commands EXPOSED BY EASNFW-CLOUD (SENSOR -> CLOUD). */
 typedef enum {
-    INTERFW_LINK_CMD_CLOUD__RESET         = 0x80, /**< RESET EASNFW-CLOUD. */
-} cloud_cmd_t;
+    IFL_CMD_CLOUD__RANGE_START   = 0x80, /**<  Not a command, just helper to check commands ranges */
+    IFL_CMD_CLOUD__RESET         = 0x80, /**< RESET EASNFW-CLOUD. */
+    IFL_CMD_CLOUD__RANGE_END     = 0xEF, /**<  Not a command, just helper to check commands ranges */
+} ifl_cloud_cmd_t;
 
 /* ========================================================================== */
 /*  ACK status codes                                                          */
 /* ========================================================================== */
 
-/* the following statuses are placeholders, not all of them will be used necessarily
-   and other ones may need to be added */
+/* some of the following statuses are placeholders, not all of them will be used
+   necessarily and other ones may need to be added */
 typedef enum {
     IFL_STAT__OK              = 0x00, /**< Received and accepted                    */
     IFL_STAT__UNKNOWN_CMD     = 0x01, /**< Command ID not exposed by this firmware  */
@@ -202,23 +210,27 @@ typedef enum {
     IFL_STAT__NO_MEMORY       = 0x07, /**< Cannot store the incoming data           */
     IFL_STAT__TRANSFER_ERR    = 0x08, /**< Transfer-level failure (bad total size, id mismatch, CRC of whole image...) */
     IFL_STAT__INTERNAL_ERR    = 0xFF  /**< Unspecified error in the receiver        */
-} easn_status_t;
+} ifl_status_t;
 
 /* ========================================================================== */
 /*  Wire structures                                                           */
 /* ========================================================================== */
 
-/* stopped review here */
+/**
+ * Ensure protocol structures have no padding so their memory layout matches
+ * the byte-level UART wire format. Zephyr applications commonly use GCC or
+ * Clang, while the fallback supports other compilers.
+ */
 #if defined(__GNUC__) || defined(__clang__)
-#  define EASN_PACKED __attribute__((packed))
+#  define IFL_PACKED __attribute__((packed))
 #else
-#  define EASN_PACKED
+#  define IFL_PACKED
 #  pragma pack(push, 1)
 #endif
 
 /** Frame header as it appears on the wire. */
-typedef struct EASN_PACKED {
-    uint8_t  sof;        /**< INTERFW_LINK_UART_SOF                       */
+typedef struct IFL_PACKED {
+    uint8_t  sof;        /**< INTERFW_LINK_UART_SOF               */
     uint8_t  type;       /**< easn_frame_type_t                   */
     uint8_t  cmd_id;     /**< Command (echoed in the ACK)         */
     uint8_t  seq;        /**< Sequence number (echoed in the ACK) */
@@ -227,8 +239,8 @@ typedef struct EASN_PACKED {
 } easn_frame_hdr_t;
 
 /** Payload of an ACK frame. */
-typedef struct EASN_PACKED {
-    uint8_t  status;       /**< easn_status_t                                    */
+typedef struct IFL_PACKED {
+    uint8_t  status;       /**< ifl_status_t                                    */
     uint8_t  reserved;     /**< 0                                                */
     uint32_t next_offset;  /**< Fragment ACKs: next byte offset the receiver
                                 expects (== offset+chunk_len on success, or the
@@ -236,12 +248,12 @@ typedef struct EASN_PACKED {
 } easn_ack_payload_t;
 
 /** Prefix of the payload in frames with EASN_FLAG_FRAGMENT. */
-typedef struct EASN_PACKED {
+typedef struct IFL_PACKED {
     uint8_t  transfer_id;  /**< Identifies the transfer; constant for all of its fragments */
-    uint8_t  reserved;     /**< 0 */
     uint32_t total_len;    /**< Total size in bytes of the whole data blob */
     uint32_t offset;       /**< Offset of this chunk inside the blob       */
-    /* followed by chunk bytes: len - sizeof(easn_frag_hdr_t) */
+    /* followed by chunk bytes (the actual data of the current transfer),
+       number of chunk bytes in a given transfer is frame header's len - sizeof(easn_frag_hdr_t) */
 } easn_frag_hdr_t;
 
 #define INTERFW_LINK_UART_MAX_FRAG_DATA \
@@ -249,40 +261,11 @@ typedef struct EASN_PACKED {
 
 /* ---- Example command payloads ------------------------------------------- */
 
-typedef struct EASN_PACKED {          /* EASN_CMD_INFO */
-    uint8_t  role;                    /**< easn_role_t                    */
-    uint8_t  proto_version;           /**< INTERFW_LINK_UART_PROTO_VERSION        */
-    uint8_t  fw_major, fw_minor, fw_patch;
-    uint8_t  reserved;
-    uint16_t max_payload;             /**< Largest payload this side accepts */
-    uint32_t build_id;
-} easn_info_t;
-
-typedef struct EASN_PACKED {          /* SENSOR_CMD_START_SAMPLING */
-    uint32_t period_ms;               /**< Sampling period            */
-    uint32_t duration_ms;             /**< 0 = until STOP_SAMPLING    */
-    uint16_t channel_mask;            /**< Bit n = channel n enabled  */
-} easn_start_sampling_t;
-
-typedef struct EASN_PACKED {          /* SENSOR_CMD_SET_TIME */
-    uint64_t unix_time_ms;
-} easn_time_t;
-
-typedef struct EASN_PACKED {          /* CLOUD_CMD_EVENT_NOTIFY */
-    uint16_t event_code;
-    uint8_t  severity;
-    uint8_t  reserved;
-    uint32_t timestamp_s;
-    uint32_t arg;
-} easn_event_t;
-
-typedef struct EASN_PACKED {          /* CLOUD_CMD_STATUS_REPORT */
-    uint8_t  state;                   /**< Sensor FSM state          */
-    uint8_t  error_flags;
-    uint16_t battery_mv;
-    uint32_t uptime_s;
-    uint32_t samples_pending;
-} easn_sensor_status_t;
+typedef struct IFL_PACKED {
+    uint8_t  fw_major
+    uint8_t  fw_minor
+    uint8_t  fw_patch;
+} ifl_cmd_payload_cloud_ready_t;
 
 #if !(defined(__GNUC__) || defined(__clang__))
 #  pragma pack(pop)
@@ -292,15 +275,27 @@ typedef struct EASN_PACKED {          /* CLOUD_CMD_STATUS_REPORT */
 
 /* Compile-time sanity checks (C11). */
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
-_Static_assert(sizeof(easn_frame_hdr_t)   == INTERFW_LINK_UART_HDR_SIZE, "hdr size");
-_Static_assert(sizeof(easn_ack_payload_t) == 6u,                 "ack size");
-_Static_assert(sizeof(easn_frag_hdr_t)    == 10u,                "frag hdr size");
-_Static_assert(INTERFW_LINK_UART_MAX_PAYLOAD > sizeof(easn_frag_hdr_t),  "payload too small");
+_Static_assert(sizeof(easn_frame_hdr_t) == INTERFW_LINK_UART_HDR_SIZE,
+               "easn_frame_hdr_t size does not match INTERFW_LINK_UART_HDR_SIZE");
+
+_Static_assert(sizeof(easn_ack_payload_t) == 6u,
+               "easn_ack_payload_t size must be 6 bytes");
+
+_Static_assert(sizeof(easn_frag_hdr_t) == 10u,
+               "easn_frag_hdr_t size must be 10 bytes");
+
+_Static_assert(INTERFW_LINK_UART_MAX_PAYLOAD > sizeof(easn_frag_hdr_t),
+               "INTERFW_LINK_UART_MAX_PAYLOAD must be larger than easn_frag_hdr_t size");
 #endif
 
 /* ========================================================================== */
 /*  Command table helpers                                                     */
 /* ========================================================================== */
+
+/**
+ * Each firmware component should have its own command table to store the
+ * commands it can receive alongside other relevant information.
+ */
 
 /** Command properties, to be used by the receiver to validate frames. */
 #define EASN_CMDF_DATA          (1u << 0) /**< May use fragmentation (large payload)   */
@@ -313,15 +308,16 @@ _Static_assert(INTERFW_LINK_UART_MAX_PAYLOAD > sizeof(easn_frag_hdr_t),  "payloa
  */
 static inline bool easn_cmd_valid_for(easn_role_t receiver, uint8_t cmd_id)
 {
-    if (cmd_id >= 0x01u && cmd_id <= 0x0Fu) { return true; }
-    if (receiver == EASN_ROLE_SENSOR) { return (cmd_id >= 0x10u && cmd_id <= 0x7Fu); }
-    return (cmd_id >= 0x80u && cmd_id <= 0xEFu);
+    if (cmd_id >= IFL_CMD_COMMON__RANGE_START && cmd_id <= IFL_CMD_COMMON__RANGE_END) { return true; }
+    if (receiver == EASN_ROLE_SENSOR) { return (cmd_id >= IFL_CMD_SENSOR__RANGE_START && cmd_id <= IFL_CMD_SENSOR__RANGE_END); }
+    return (cmd_id >= IFL_CMD_CLOUD__RANGE_START && cmd_id <= IFL_CMD_CLOUD__RANGE_START);
 }
 
 /* ========================================================================== */
 /*  Port layer (HAL) provided by the integrator                               */
 /* ========================================================================== */
 
+/** stopped review here (do we need this?) */
 typedef struct {
     /** Write @p len bytes to the UART TX (blocking or queued to DMA/ISR ring).
      *  @return number of bytes accepted, <0 on error. Must accept all bytes
@@ -356,7 +352,7 @@ typedef struct {
      * interfw_link_uart_rx_feed()/interfw_link_uart_poll() context: keep it short, defer slow
      * work (reply with your own command later).
      */
-    easn_status_t (*on_command)(void *user, uint8_t cmd_id,
+    ifl_status_t (*on_command)(void *user, uint8_t cmd_id,
                                 const uint8_t *payload, uint16_t len);
 
     /**
@@ -365,7 +361,7 @@ typedef struct {
      * aborts the transfer (the status is sent in the ACK).
      * @p is_last is true on the final chunk: the blob is complete after it.
      */
-    easn_status_t (*on_data_chunk)(void *user, uint8_t cmd_id, uint8_t transfer_id,
+    ifl_status_t (*on_data_chunk)(void *user, uint8_t cmd_id, uint8_t transfer_id,
                                    uint32_t offset, uint32_t total_len,
                                    const uint8_t *chunk, uint16_t chunk_len,
                                    bool is_last);
@@ -375,7 +371,7 @@ typedef struct {
 
     /** The command (or whole large transfer) sent by this side has finished. */
     void (*on_tx_done)(void *user, uint8_t cmd_id, easn_tx_result_t result,
-                       easn_status_t peer_status);
+                       ifl_status_t peer_status);
 
     void *user;
 } interfw_link_uart_callbacks_t;
