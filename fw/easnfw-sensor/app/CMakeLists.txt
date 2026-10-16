@@ -20,6 +20,7 @@ target_sources(app PRIVATE
 	src/platform/mass_storage.c
 	src/platform/nvs.c
 	src/platform/spi_transport.c
+	src/platform/uart.c
 	src/shared/spi_protocol.c
 	src/shared/ecoacoustic_record.c
 	src/shared/retry.c

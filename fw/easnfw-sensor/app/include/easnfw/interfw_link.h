@@ -6,7 +6,7 @@
  *
  * @return 0 on success, error code from enum easnfw_status on failure.
  */
-int interfw_link__reset_easnfwcloud_tx(void);
+int ifl__reset_easnfwcloud_tx(void);
 
 /**
  * @brief Handler for the EASNFWCLOUD_READY command from EASNFW-CLOUD.
@@ -15,6 +15,6 @@ int interfw_link__reset_easnfwcloud_tx(void);
  *
  * @return 0 on success, error code from enum easnfw_status on failure.
  */
-int interfw_link__easnfwcloud_ready_rx(void);
+int ifl__easnfwcloud_ready_rx(void);
 
 #endif /* EASNFW_INTERFW_LINK_H */

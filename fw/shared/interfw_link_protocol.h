@@ -172,26 +172,23 @@ typedef enum {
  *   0xF0..0xFF  reserved
  */
 
-/** Commands implemented by both firmware components. */
-typedef enum {
-    IFL_CMD_COMMON__RANGE_START        = 0x01, /**< Not a command, just helper to check commands ranges */
-    IFL_CMD_COMMON__PING               = 0x01, /**< Link liveness check. */
-    IFL_CMD_COMMON__RANGE_END          = 0x0F, /**< Not a command, just helper to check commands ranges */
-} ifl_common_cmd_t;
 
-/** Commands EXPOSED BY EASNFW-SENSOR (CLOUD -> SENSOR). */
-typedef enum {
-    IFL_CMD_SENSOR__RANGE_START  = 0x10, /**<  Not a command, just helper to check commands ranges */
-    IFL_CMD_SENSOR__CLOUD_READY  = 0x10, /**< EASNFW-CLOUD ready after reset. */
-    IFL_CMD_SENSOR__RANGE_END    = 0x7F, /**<  Not a command, just helper to check commands ranges. */
-} ifl_sensor_cmd_t;
+enum ifl_commands {
+	/** Commands implemented by both firmware components. */
+	IFL_CMD_COMMON__RANGE_START        = 0x01, /**< Not a command, just helper to check commands ranges */
+	IFL_CMD_COMMON__PING               = 0x01, /**< Link liveness check. */
+	IFL_CMD_COMMON__RANGE_END          = 0x0F, /**< Not a command, just helper to check commands ranges */
 
-/** Commands EXPOSED BY EASNFW-CLOUD (SENSOR -> CLOUD). */
-typedef enum {
-    IFL_CMD_CLOUD__RANGE_START   = 0x80, /**<  Not a command, just helper to check commands ranges */
-    IFL_CMD_CLOUD__RESET         = 0x80, /**< RESET EASNFW-CLOUD. */
-    IFL_CMD_CLOUD__RANGE_END     = 0xEF, /**<  Not a command, just helper to check commands ranges */
-} ifl_cloud_cmd_t;
+	/** Commands EXPOSED BY EASNFW-SENSOR (CLOUD -> SENSOR). */
+	IFL_CMD_SENSOR__RANGE_START  = 0x10, /**<  Not a command, just helper to check commands ranges */
+	IFL_CMD_SENSOR__CLOUD_READY  = 0x10, /**< EASNFW-CLOUD ready after reset. */
+	IFL_CMD_SENSOR__RANGE_END    = 0x7F, /**<  Not a command, just helper to check commands ranges. */
+
+	/** Commands EXPOSED BY EASNFW-CLOUD (SENSOR -> CLOUD). */
+	IFL_CMD_CLOUD__RANGE_START   = 0x80, /**<  Not a command, just helper to check commands ranges */
+	IFL_CMD_CLOUD__RESET         = 0x80, /**< RESET EASNFW-CLOUD. */
+	IFL_CMD_CLOUD__RANGE_END     = 0xEF, /**<  Not a command, just helper to check commands ranges */
+};
 
 /* ========================================================================== */
 /*  ACK status codes                                                          */
@@ -314,214 +311,30 @@ static inline bool easn_cmd_valid_for(easn_role_t receiver, uint8_t cmd_id)
 }
 
 /* ========================================================================== */
-/*  Port layer (HAL) provided by the integrator                               */
+/*  APÌ                                                                       */
 /* ========================================================================== */
 
 /**
- * do we need this since we are using Zephyr, which already provides hardware
- * the integration layer? probably not
+ * @brief Get Inter-FW Link initialization status.
+ *
+ * @return true if Inter-FW Link is initialized, false otherwise.
  */
-typedef struct {
-    /** Write @p len bytes to the UART TX (blocking or queued to DMA/ISR ring).
-     *  @return number of bytes accepted, <0 on error. Must accept all bytes
-     *          or none (the link does not do partial-write bookkeeping). */
-    int      (*uart_write)(void *ctx, const uint8_t *data, size_t len);
-
-    /** Monotonic millisecond tick. */
-    uint32_t (*now_ms)(void *ctx);
-
-    /** Optional critical-section hooks (may be NULL when single threaded). */
-    void     (*lock)(void *ctx);
-    void     (*unlock)(void *ctx);
-
-    void      *ctx;     /**< Passed back to every function above */
-} interfw_link_uart_port_t;
-
-/* ========================================================================== */
-/*  Application callbacks                                                     */
-/* ========================================================================== */
-
-/** Result of a command sent by this side. */
-typedef enum {
-    EASN_TX_ACKED_OK = 0,   /**< Peer ACKed with EASN_ST_OK                         */
-    EASN_TX_ACKED_ERR,      /**< Peer ACKed with a non-OK status (see @c status)    */
-    EASN_TX_TIMEOUT         /**< No ACK after INTERFW_LINK_UART_MAX_RETRIES retransmissions */
-} easn_tx_result_t;
-
-/** not sure if this is needed, maybe it only overcomplicates stuff */
-typedef struct {
-    /**
-     * A complete, single-frame command (no fragmentation) was received.
-     * The returned status is sent back in the ACK. Called from
-     * interfw_link_uart_rx_feed()/interfw_link_uart_poll() context: keep it short, defer slow
-     * work (reply with your own command later).
-     */
-    ifl_status_t (*on_command)(void *user, uint8_t cmd_id,
-                                const uint8_t *payload, uint16_t len);
-
-    /**
-     * One chunk of a fragmented (large) command was received. Called in order,
-     * once per fragment. Return EASN_ST_OK to accept the chunk, anything else
-     * aborts the transfer (the status is sent in the ACK).
-     * @p is_last is true on the final chunk: the blob is complete after it.
-     */
-    ifl_status_t (*on_data_chunk)(void *user, uint8_t cmd_id, uint8_t transfer_id,
-                                   uint32_t offset, uint32_t total_len,
-                                   const uint8_t *chunk, uint16_t chunk_len,
-                                   bool is_last);
-
-    /** A transfer was aborted by the peer or timed out locally. */
-    void (*on_transfer_aborted)(void *user, uint8_t cmd_id, uint8_t transfer_id);
-
-    /** The command (or whole large transfer) sent by this side has finished. */
-    void (*on_tx_done)(void *user, uint8_t cmd_id, easn_tx_result_t result,
-                       ifl_status_t peer_status);
-
-    void *user;
-} interfw_link_uart_callbacks_t;
-
-/* ========================================================================== */
-/*  Link object                                                               */
-/* ========================================================================== */
-
-/** Library error codes (return values of the API, NOT sent on the wire). */
-typedef enum {
-    EASN_OK            =  0,
-    EASN_ERR_PARAM     = -1,  /**< NULL pointer / invalid argument               */
-    EASN_ERR_BUSY      = -2,  /**< A command is already waiting for its ACK      */
-    EASN_ERR_TOO_BIG   = -3,  /**< Payload exceeds INTERFW_LINK_UART_MAX_PAYLOAD (use interfw_link_uart_send_data) */
-    EASN_ERR_CMD       = -4,  /**< Command not valid towards the peer's role     */
-    EASN_ERR_IO        = -5,  /**< port->uart_write failed                       */
-    EASN_ERR_TIMEOUT   = -6
-} easn_err_t;
-
-/** Receive parser states. */
-typedef enum {
-    EASN_RX_WAIT_SOF = 0,
-    EASN_RX_HEADER,
-    EASN_RX_PAYLOAD,
-    EASN_RX_CRC
-} easn_rx_state_t;
-
-/** Source of the bytes of a large transfer being transmitted. */
-typedef struct {
-    const uint8_t *data;       /**< Must stay valid until on_tx_done()    */
-    uint32_t       total_len;
-    uint32_t       offset;     /**< Next byte to send                     */
-    uint8_t        transfer_id;
-    uint8_t        cmd_id;
-    bool           active;
-} easn_tx_transfer_t;
-
-/** State of a transfer being received. */
-typedef struct {
-    uint32_t       total_len;
-    uint32_t       next_offset;
-    uint8_t        transfer_id;
-    uint8_t        cmd_id;
-    bool           active;
-} easn_rx_transfer_t;
+bool ifl__is_init(void);
 
 /**
- * Link instance. One per UART. Fields are private: treat as opaque and use
- * the API below. It is exposed here only so it can be statically allocated.
+ * @brief Initialize Inter-FW Link.
  */
-typedef struct interfw_link_uart_link {
-    easn_role_t            role;          /**< Role of THIS firmware       */
-    interfw_link_uart_port_t       port;
-    interfw_link_uart_callbacks_t  cb;
-
-    /* RX parser */
-    easn_rx_state_t        rx_state;
-    uint16_t               rx_idx;
-    uint16_t               rx_expected;
-    uint32_t               rx_last_byte_ms;
-    uint8_t                rx_buf[INTERFW_LINK_UART_MAX_FRAME_SIZE];
-
-    /* Duplicate suppression for received commands */
-    bool                   rx_have_last_seq;
-    uint8_t                rx_last_seq;
-    easn_ack_payload_t     rx_last_ack;   /**< Re-sent verbatim on duplicates */
-    easn_rx_transfer_t     rx_xfer;
-
-    /* TX: single outstanding command, stop-and-wait */
-    uint8_t                tx_seq;        /**< SEQ of the next NEW command */
-    bool                   tx_waiting_ack;
-    uint8_t                tx_cur_seq;
-    uint8_t                tx_cur_cmd;
-    uint8_t                tx_cur_flags;
-    uint8_t                tx_retries;
-    uint32_t               tx_sent_ms;
-    uint16_t               tx_frame_len;
-    uint8_t                tx_frame[INTERFW_LINK_UART_MAX_FRAME_SIZE]; /**< Kept for retransmission */
-    easn_tx_transfer_t     tx_xfer;
-    uint8_t                next_transfer_id;
-
-    /* Statistics */
-    struct {
-        uint32_t frames_rx, frames_tx;
-        uint32_t crc_errors, timeouts, retransmissions, duplicates;
-    } stats;
-} interfw_link_uart_link_t;
-
-/* ========================================================================== */
-/*  API                                                                       */
-/* ========================================================================== */
-
-/** CRC-16/CCITT-FALSE helper (also usable to checksum whole transferred images). */
-uint16_t easn_crc16(uint16_t crc, const uint8_t *data, size_t len);
+void ifl__init(void);
 
 /**
- * @brief  Initialise a link.
- * @param  role  Role of the firmware calling this function.
+ * @brief Send a command through Inter-FW Link.
+ *
+ * @param cmd command to be sent, see enum ifl_commands.
+ *
+ * @return change from void to applicable statuses.
  */
-easn_err_t interfw_link_uart_init(interfw_link_uart_link_t *link, easn_role_t role,
-                          const interfw_link_uart_port_t *port,
-                          const interfw_link_uart_callbacks_t *callbacks);
+void ifl__cmd_tx(uint8_t cmd);
 
-/**
- * @brief  Feed bytes received from the UART (call from the main loop, or
- *         from a task draining the RX ring buffer / DMA buffer).
- *         May invoke on_command/on_data_chunk and transmits ACKs.
- *         Also processes ACK frames for the command in flight.
- */
-void interfw_link_uart_rx_feed(interfw_link_uart_link_t *link, const uint8_t *data, size_t len);
-
-/**
- * @brief  Periodic service (call at least every ~10 ms): ACK timeouts,
- *         retransmissions, RX inter-byte timeout, and sending the next
- *         fragment of a large transfer after the previous one was acked.
- */
-void interfw_link_uart_poll(interfw_link_uart_link_t *link);
-
-/**
- * @brief  Send a command with no payload or a small payload (single frame).
- * @param  cmd_id   A COMMON command or a command in the PEER's range
- *                  (SENSOR sends CLOUD_CMD_xxx, CLOUD sends SENSOR_CMD_xxx).
- * @param  payload  May be NULL when @p len == 0.
- * @param  len      <= INTERFW_LINK_UART_MAX_PAYLOAD.
- * @retval EASN_OK        Frame sent; on_tx_done() will report the outcome.
- * @retval EASN_ERR_BUSY  Previous command still waiting for its ACK.
- */
-easn_err_t interfw_link_uart_send_command(interfw_link_uart_link_t *link, uint8_t cmd_id,
-                                  const void *payload, uint16_t len);
-
-/**
- * @brief  Send a command with a large data blob, fragmented automatically.
- *         Fragments are sent one by one from interfw_link_uart_poll()/rx_feed() as
- *         the ACKs arrive. @p data must remain valid and unmodified until
- *         on_tx_done() is called (once for the whole transfer).
- * @retval EASN_OK        Transfer started.
- * @retval EASN_ERR_BUSY  Another command/transfer is in progress.
- */
-easn_err_t interfw_link_uart_send_data(interfw_link_uart_link_t *link, uint8_t cmd_id,
-                               const uint8_t *data, uint32_t total_len);
-
-/** Abort the large transfer being transmitted (sends a FLAGS.ABORT frame). */
-easn_err_t interfw_link_uart_abort_transfer(interfw_link_uart_link_t *link);
-
-/** True when a new command can be submitted. */
-bool interfw_link_uart_tx_ready(const interfw_link_uart_link_t *link);
 
 #ifdef __cplusplus
 }

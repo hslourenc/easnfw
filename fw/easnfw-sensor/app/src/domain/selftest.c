@@ -4,6 +4,7 @@
 #include <easnfw/config.h>
 #include <easnfw/platform.h>
 #include <easnfw/selftest.h>
+#include <easnfw/status.h>
 
 #ifdef CONFIG_EASNFW_VERIFICATION_CODE
 #include "../verif/test_cases.h"
