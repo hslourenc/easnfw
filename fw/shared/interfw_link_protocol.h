@@ -1,5 +1,5 @@
 /**
- * @file    interfw_link_uart.h
+ * @file    interfw_link_protocol.h
  * @brief   UART protocol for the Inter-FW link (IFL).
  *
  * ============================================================================
@@ -317,7 +317,10 @@ static inline bool easn_cmd_valid_for(easn_role_t receiver, uint8_t cmd_id)
 /*  Port layer (HAL) provided by the integrator                               */
 /* ========================================================================== */
 
-/** stopped review here (do we need this?) */
+/**
+ * do we need this since we are using Zephyr, which already provides hardware
+ * the integration layer? probably not
+ */
 typedef struct {
     /** Write @p len bytes to the UART TX (blocking or queued to DMA/ISR ring).
      *  @return number of bytes accepted, <0 on error. Must accept all bytes
@@ -345,6 +348,7 @@ typedef enum {
     EASN_TX_TIMEOUT         /**< No ACK after INTERFW_LINK_UART_MAX_RETRIES retransmissions */
 } easn_tx_result_t;
 
+/** not sure if this is needed, maybe it only overcomplicates stuff */
 typedef struct {
     /**
      * A complete, single-frame command (no fragmentation) was received.
