@@ -3,7 +3,10 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr)
 project(EASN_FW)
 
-target_include_directories(app PRIVATE include)
+target_include_directories(app PRIVATE
+	include
+	../../shared
+)
 
 target_sources(app PRIVATE
 	src/main.c
@@ -14,6 +17,7 @@ target_sources(app PRIVATE
 	src/domain/audio_sampling.c
 	src/domain/env_sampling.c
 	src/domain/audio_algo.c
+	src/domain/interfw_link.c
 	src/domain/selftest.c
 	src/platform/audio_sensor_drv.c
 	src/platform/env_sensor_drv.c

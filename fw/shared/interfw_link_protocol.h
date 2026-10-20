@@ -96,6 +96,10 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* ========================================================================== */
 /*  Configuration (override from the build system if needed)                  */
 /* ========================================================================== */
@@ -158,6 +162,30 @@ typedef enum {
     EASN_ROLE_SENSOR = 0,   /**< This MCU runs EASNFW-SENSOR */
     EASN_ROLE_CLOUD  = 1    /**< This MCU runs EASNFW-CLOUD  */
 } easn_role_t;
+
+/**
+ * Runtime state maintained by an IFL endpoint.
+ *
+ * The state is intentionally transport-independent: UART setup and frame
+ * buffering are handled by the platform layer, while these fields track the
+ * protocol identity and sequence state needed by both endpoints.
+ */
+struct ifl_runtime_state {
+    /** Role of this endpoint; controls which command range it may receive. */
+    easn_role_t role;
+    /** Sequence number assigned to the next newly transmitted command. */
+    uint8_t next_tx_seq;
+    /** Sequence number of the most recently accepted received command. */
+    uint8_t last_rx_seq;
+    /**
+     * Whether last_rx_seq contains a valid previously accepted sequence.
+     *
+     * This is separate from last_rx_seq because sequence zero is valid. It
+     * distinguishes "no command received yet" from "the last command had
+     * sequence zero" during duplicate-command detection.
+     */
+    bool last_rx_seq_valid;
+};
 
 /* ========================================================================== */
 /*  Command identifiers                                                       */
@@ -259,8 +287,8 @@ typedef struct IFL_PACKED {
 /* ---- Example command payloads ------------------------------------------- */
 
 typedef struct IFL_PACKED {
-    uint8_t  fw_major
-    uint8_t  fw_minor
+    uint8_t  fw_major;
+    uint8_t  fw_minor;
     uint8_t  fw_patch;
 } ifl_cmd_payload_cloud_ready_t;
 
@@ -278,8 +306,8 @@ _Static_assert(sizeof(easn_frame_hdr_t) == INTERFW_LINK_UART_HDR_SIZE,
 _Static_assert(sizeof(easn_ack_payload_t) == 6u,
                "easn_ack_payload_t size must be 6 bytes");
 
-_Static_assert(sizeof(easn_frag_hdr_t) == 10u,
-               "easn_frag_hdr_t size must be 10 bytes");
+_Static_assert(sizeof(easn_frag_hdr_t) == 9u,
+               "easn_frag_hdr_t size must be 9 bytes");
 
 _Static_assert(INTERFW_LINK_UART_MAX_PAYLOAD > sizeof(easn_frag_hdr_t),
                "INTERFW_LINK_UART_MAX_PAYLOAD must be larger than easn_frag_hdr_t size");
@@ -298,16 +326,26 @@ _Static_assert(INTERFW_LINK_UART_MAX_PAYLOAD > sizeof(easn_frag_hdr_t),
 #define EASN_CMDF_DATA          (1u << 0) /**< May use fragmentation (large payload)   */
 #define EASN_CMDF_NO_PAYLOAD    (1u << 1) /**< Payload must be empty                   */
 
+/** Description of a command accepted by an IFL endpoint. */
+typedef struct {
+    /** Command identifier. */
+    uint8_t cmd_id;
+    /** EASN_CMDF_* properties used to validate the command. */
+    uint8_t flags;
+    /** Required payload length, or zero for commands without a payload. */
+    uint16_t payload_len;
+} easn_ifl_command_entry_t;
+
 /**
  * @brief  Direction check: can @p cmd_id be received by firmware @p receiver?
  * @return true if the command is either COMMON, or belongs to the receiver's
  *         own exposed range (SENSOR range for SENSOR, CLOUD range for CLOUD).
  */
-static inline bool easn_cmd_valid_for(easn_role_t receiver, uint8_t cmd_id)
+static inline bool ifl__is_cmd_valid(easn_role_t receiver, uint8_t cmd_id)
 {
     if (cmd_id >= IFL_CMD_COMMON__RANGE_START && cmd_id <= IFL_CMD_COMMON__RANGE_END) { return true; }
     if (receiver == EASN_ROLE_SENSOR) { return (cmd_id >= IFL_CMD_SENSOR__RANGE_START && cmd_id <= IFL_CMD_SENSOR__RANGE_END); }
-    return (cmd_id >= IFL_CMD_CLOUD__RANGE_START && cmd_id <= IFL_CMD_CLOUD__RANGE_START);
+    return (cmd_id >= IFL_CMD_CLOUD__RANGE_START && cmd_id <= IFL_CMD_CLOUD__RANGE_END);
 }
 
 /* ========================================================================== */
@@ -324,16 +362,19 @@ bool ifl__is_init(void);
 /**
  * @brief Initialize Inter-FW Link.
  */
-void ifl__init(void);
+int ifl__init(void);
 
 /**
  * @brief Send a command through Inter-FW Link.
  *
  * @param cmd command to be sent, see enum ifl_commands.
+ * @param payload command payload, or NULL when payload_len is zero.
+ * @param payload_len command payload length in bytes.
  *
- * @return change from void to applicable statuses.
+ * @return 0 on success, or a negative EASNFW status code on failure.
  */
-void ifl__cmd_tx(uint8_t cmd);
+int ifl__cmd_tx(uint8_t const cmd, uint8_t const *payload,
+                uint16_t const payload_len);
 
 
 #ifdef __cplusplus
