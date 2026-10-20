@@ -96,9 +96,17 @@ The output is written to `docs/sphinx/build/html`.
     ```
     west build --pristine -b nrf5340_audio_dk/nrf5340/cpuapp fw/easnfw-sensor/app --build-dir fw/easnfw-sensor/app/build
     ```
-    
+
     and EASNFW-CLOUD with:
-    
+
     ```
     west build --pristine -b nrf9151dk/nrf9151 fw/easnfw-cloud/app --build-dir fw/easnfw-cloud/app/build
     ```
+
+    The default image type is the development image. To build a different image
+    type append ` -- -DCONFIG_EASNFW_IMAGE_TYPE_<TYPE>` to the provided
+    commands, replacing `<TYPE>` with the identifier of the desired image type:
+    `PRODUCTION`, `DEVELOPMENT` (already the default), `DEBUG` or `HIL`.
+
+    `--pristine` is recommended when changing image types so that the previous
+    image configuration is removed.
