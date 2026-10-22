@@ -108,5 +108,21 @@ The output is written to `docs/sphinx/build/html`.
     commands, replacing `<TYPE>` with the identifier of the desired image type:
     `PRODUCTION`, `DEVELOPMENT` (already the default), `DEBUG` or `HIL`.
 
+## Running the minimal HIL CLI
+
+The HIL image exposes the secondary commands used by the verification flow.
+Install the host CLI from `tools/easncli` after connecting the sensor DK over
+USB:
+
+```sh
+python -m pip install -e tools/easncli
+easncli tc 1
+```
+
+The CLI automatically selects the only serial port visible to the host. Use
+`easncli tc 1 --port /dev/ttyACM0` when more than one serial port is present.
+It creates a timestamped `tc-001-*` directory containing the result JSON and
+logs.
+
     `--pristine` is recommended when changing image types so that the previous
     image configuration is removed.

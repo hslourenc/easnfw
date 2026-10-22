@@ -18,6 +18,7 @@ target_sources(app PRIVATE
 	src/domain/env_sampling.c
 	src/domain/audio_algo.c
 	src/domain/interfw_link.c
+	src/domain/reset.c
 	src/domain/selftest.c
 	src/platform/audio_sensor_drv.c
 	src/platform/env_sensor_drv.c

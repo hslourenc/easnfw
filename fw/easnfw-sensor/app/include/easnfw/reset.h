@@ -4,12 +4,12 @@
 /**
  * @brief Set easnfwcloud_ready flag.
  */
-void reset__easnfwcloud_ready_set(void);
+int reset__easnfwcloud_ready_set(void);
 
 /**
  * @brief Clear easnfwcloud_ready flag.
  */
-void reset__easnfwcloud_ready_clear(void);
+int reset__easnfwcloud_ready_clear(void);
 
 /**
  * @brief Reset EASNFW-SENSOR and EASNFW-CLOUD.

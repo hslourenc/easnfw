@@ -9,6 +9,8 @@
 #include <zephyr/sys/reboot.h>
 
 #include <easnfw/config.h>
+#include <easnfw/interfw_link.h>
+#include <easnfw/reset.h>
 
 #include "test_cases.h"
 
@@ -77,11 +79,16 @@ static void cli__cmd_reset(const struct shell *shell, size_t argc, char **argv)
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	reset__easnfw_reset();
+	if (reset__easnfw_reset(true) != 0) {
+		shell_error(shell, "reset sequence failed");
+	}
 }
 
 void cli__wait_for_shell_ready(void)
 {
+	if (ifl__init() != 0) {
+		LOG_ERR("IFL initialization failed");
+	}
 	while (!shell_ready()) {
 		k_msleep(10);
 	}

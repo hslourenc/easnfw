@@ -5,6 +5,7 @@
 
 LOG_MODULE_REGISTER(easnfw_cloud, LOG_LEVEL_INF);
 
+int easnfw_cloud_ifl_init(void);
 
 K_MSGQ_DEFINE(rx_payload_q, sizeof(struct easnfw_pipeline_message), 4, 4);
 K_MSGQ_DEFINE(assembled_payload_q, sizeof(struct easnfw_pipeline_message), 4, 4);
@@ -13,6 +14,10 @@ K_MSGQ_DEFINE(tx_result_q, sizeof(struct easnfw_pipeline_message), 4, 4);
 int main(void)
 {
 	LOG_INF("EASNFW-CLOUD starting");
+	if (easnfw_cloud_ifl_init() != 0) {
+		LOG_ERR("Cloud IFL initialization failed");
+		return -1;
+	}
 
 	if (easnfw_selftest_run() != 0) {
 		LOG_ERR("Cloud self-test failed");

@@ -51,10 +51,15 @@ static struct k_sem ifl_ack_sem;
 /** Indicate whether an ACK is being waited for. */
 static bool ifl_ack_waiting;
 
-
 static uint8_t ifl_ack_cmd;
 static uint8_t ifl_ack_seq;
 static ifl_status_t ifl_ack_status;
+static uint8_t ifl_last_rx_cmd;
+static uint8_t ifl_last_rx_seq;
+static ifl_status_t ifl_last_rx_status;
+
+#define IFL_RX_THREAD_STACK_SIZE 1024
+#define IFL_RX_THREAD_PRIORITY   5
 
 /** Calculate the CRC-16/CCITT-FALSE used for IFL frames. */
 static uint16_t ifl__crc16(uint8_t const *data, size_t const len)
@@ -156,6 +161,124 @@ static void ifl__rx_frame_valid(void)
 			header.type, header.cmd_id, header.seq);
 	}
 }
+
+/** Transmit an ACK for a completely received command frame. */
+static void ifl__ack_tx(easn_frame_hdr_t const *const command_header,
+			ifl_status_t const status)
+{
+	uint8_t frame[INTERFW_LINK_UART_HDR_SIZE +
+		      sizeof(easn_ack_payload_t) +
+		      INTERFW_LINK_UART_CRC_SIZE];
+	easn_frame_hdr_t const header = {
+		.sof = INTERFW_LINK_UART_SOF,
+		.type = EASN_FRAME_ACK,
+		.cmd_id = command_header->cmd_id,
+		.seq = command_header->seq,
+		.flags = 0u,
+		.len = sizeof(easn_ack_payload_t),
+	};
+	easn_ack_payload_t const payload = {
+		.status = status,
+		.reserved = 0u,
+		.next_offset = 0u,
+	};
+	uint16_t const crc = ifl__crc16(&frame[1],
+					INTERFW_LINK_UART_HDR_SIZE +
+					sizeof(payload) - 1u);
+	int err;
+
+	memcpy(frame, &header, sizeof(header));
+	memcpy(&frame[INTERFW_LINK_UART_HDR_SIZE], &payload, sizeof(payload));
+	frame[sizeof(frame) - 2u] = (uint8_t)(crc & 0xFFu);
+	frame[sizeof(frame) - 1u] = (uint8_t)(crc >> 8);
+
+	err = uart__ifl_tx(frame, sizeof(frame));
+	if (err != 0) {
+		LOG_ERR("Failed to send ACK cmd=0x%02x seq=%u status=0x%02x (%d)",
+			command_header->cmd_id, command_header->seq, status, err);
+		return;
+	}
+
+	LOG_DBG("Sent ACK cmd=0x%02x seq=%u status=0x%02x",
+		command_header->cmd_id, command_header->seq, status);
+}
+
+/** Find a command in the SENSOR receive table and validate its payload. */
+static ifl_status_t ifl__received_command_status(
+	easn_frame_hdr_t const *const header, uint8_t const *const payload)
+{
+	if (!ifl__is_cmd_valid(ifl_state.role, header->cmd_id)) {
+		return IFL_STAT__UNKNOWN_CMD;
+	}
+
+	for (size_t i = 0u; i < EASNFW_SENSOR_IFL_COMMAND_COUNT; ++i) {
+		easn_ifl_command_entry_t const *const entry =
+			&easnfw_sensor_ifl_command_table[i];
+
+		if (entry->cmd_id != header->cmd_id) {
+			continue;
+		}
+
+		if (((entry->flags & EASN_CMDF_NO_PAYLOAD) != 0u &&
+		     header->len != 0u) ||
+		    ((entry->flags & EASN_CMDF_NO_PAYLOAD) == 0u &&
+		     header->len != entry->payload_len)) {
+			return IFL_STAT__BAD_LEN;
+		}
+
+		if (header->cmd_id == IFL_CMD_SENSOR__CLOUD_READY) {
+			if (payload == NULL) {
+				return IFL_STAT__BAD_PARAM;
+			}
+			return ifl__easnfwcloud_ready_rx() == 0
+				? IFL_STAT__OK
+				: IFL_STAT__INTERNAL_ERR;
+		}
+
+		return IFL_STAT__OK;
+	}
+
+	return IFL_STAT__UNKNOWN_CMD;
+}
+
+/** Consume complete commands, execute them, and return their ACK status. */
+static void ifl__rx_worker(void *arg1, void *arg2, void *arg3)
+{
+	struct ifl_received_frame received;
+
+	ARG_UNUSED(arg1);
+	ARG_UNUSED(arg2);
+	ARG_UNUSED(arg3);
+
+	for (;;) {
+		easn_frame_hdr_t header;
+		ifl_status_t status;
+		uint8_t const *payload;
+
+		k_msgq_get(&ifl_rx_msgq, &received, K_FOREVER);
+		memcpy(&header, received.data, sizeof(header));
+		payload = &received.data[INTERFW_LINK_UART_HDR_SIZE];
+
+		if (ifl_state.last_rx_seq_valid &&
+		    (header.cmd_id == ifl_last_rx_cmd) &&
+		    (header.seq == ifl_last_rx_seq)) {
+			/* The original ACK may have been lost; do not execute twice. */
+			ifl__ack_tx(&header, ifl_last_rx_status);
+			continue;
+		}
+
+		status = ifl__received_command_status(&header, payload);
+		ifl_last_rx_cmd = header.cmd_id;
+		ifl_last_rx_seq = header.seq;
+		ifl_last_rx_status = status;
+		ifl_state.last_rx_seq = header.seq;
+		ifl_state.last_rx_seq_valid = true;
+		ifl__ack_tx(&header, status);
+	}
+}
+
+K_THREAD_DEFINE(ifl_rx_thread_id, IFL_RX_THREAD_STACK_SIZE, ifl__rx_worker,
+		NULL, NULL, NULL, IFL_RX_THREAD_PRIORITY, 0, 0);
 
 /** Incrementally assemble frames from arbitrary asynchronous RX chunks. */
 static void ifl__rx_data_handler(uint8_t const *data, size_t const len)
@@ -406,13 +529,6 @@ int ifl__reset_easnfwcloud_tx(void)
 
 int ifl__easnfwcloud_ready_rx(void)
 {
-	/**
-	 * EASNFW_TODO: implement according to function header in
-	 * interfw_link.h. Clear the easnfwcloud_ready flag with
-	 * reset__easnfwcloud_ready_clear().
-	 *
-	 * See also:
-	 * - interfw_link_protocol.h
-	 */
-	return -EASNFW_STATUS__INTERFW_LINK_NOT_IMPLEMENTED;
+	/* The ACK confirms receipt; the ready flag records the peer's state. */
+	return reset__easnfwcloud_ready_set();
 }
