@@ -54,7 +54,8 @@ When the power-on log payload transmission is scheduled, EASNFW shall attempt to
 clear the reset reason from NVS and update the reset history on NVS.
 
 The reset history on NVS is a ring buffer that contains a rolling history of the
-date and time of the last ``PARAM_MAX_RECOVERY_RESETS`` resets.
+date and time of the last ``PARAM_MAX_RECOVERY_RESETS`` resets. The initial
+implementation baseline for ``PARAM_MAX_RECOVERY_RESETS`` is 5.
 
 .. note::
 
@@ -145,6 +146,12 @@ record from a previous reset cycle is scheduled, if the self-test sequence
 identifies all the checked capabilities as operational, EASNFW shall start
 the data acquisition cycle.
 
+Before its first data acquisition cycle after boot, EASNFW shall obtain valid
+UTC time from the LTE-connected EASNFW-CLOUD component. If UTC is not yet
+available, EASNFW shall retry synchronization and shall not start data
+acquisition. A time-synchronization delay by itself shall not cause entry into
+diagnostic state.
+
 For each data acquisition cycle, EASNFW shall wait until there is sufficient
 mass storage free-space for a new ecoacoustic record, acquire audio and
 environmental data according to :ref:`section_req_audio_acquisition` and
@@ -174,7 +181,9 @@ REQ-031: Audio Data Acquisition
 For each data acquisition cycle, EASNFW shall capture a
 ``PARAM_TRACK_LEN``-second audio track using the parameters from
 :ref:`table_audio_sample_param` with ISO-8601 timestamps with UTC offset
-identifying the beginning and the end of the capture.
+identifying the beginning and the end of the capture. The initial time-source
+baseline is cellular network UTC delivered by EASNFW-CLOUD. Timestamps shall
+use the UTC ``Z`` designator.
 
 .. _table_audio_sample_param:
 

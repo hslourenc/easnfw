@@ -1,12 +1,18 @@
-#include <stddef.h>
-#include <easnfw/domain.h>
+#include <errno.h>
+#include <string.h>
 
+#include <easnfw/audio_algo.h>
+
+/** The baseline processor is intentionally bit-exact pending algorithm design. */
 int audio_algo_process(const struct easnfw_audio_block *input,
 	struct easnfw_audio_block *output)
 {
-	/* EASNFW_TODO: Implement the audio processing algorithm. */
-	if (input != NULL && output != NULL) {
-		*output = *input;
+	if (input == NULL || output == NULL ||
+	    input->sample_count > EASNFW_AUDIO_BLOCK_SAMPLES) {
+		return -EINVAL;
+	}
+	if (input != output) {
+		memcpy(output, input, sizeof(*output));
 	}
 	return 0;
 }

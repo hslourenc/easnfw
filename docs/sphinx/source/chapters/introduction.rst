@@ -106,7 +106,7 @@ interacts with.
      - Responsible firmware component
      - Purpose
    * - Audio sensor
-     - TBD
+     - PUI Audio DMM-4026-B-I2S-R
      - I2S (initial baseline)
      - No
      - EASNFW-SENSOR
@@ -119,7 +119,7 @@ interacts with.
      - Acquire environmental data: temperature, humidity, pressure and
        volatile organic compounds (VOCs).
    * - Mass storage
-     - SD card (exact part TBD)
+     - microSD card
      - SPI
      - Yes (SD card holder built-in to the nRF5340 Audio DK)
      - EASNFW-SENSOR
@@ -131,6 +131,90 @@ interacts with.
      - EASNFW-SENSOR
      - Store and persist miscellaneous data, such as details about a failure
        that led to a reset.
+
+Hardware Connections
+====================
+
+The current development baseline uses the nRF5340 Audio DK for SENSOR and the
+nRF9151 SMA DK for CLOUD. Pin assignments below describe the current overlays
+and Nordic development-kit routing; confirm the selected board revision and
+electrical limits before connecting external hardware.
+
+SENSOR audio and environmental sensors
+---------------------------------------
+
+The DMM-4026 microphone is connected to the nRF5340 Audio DK P10 external
+codec header. The firmware selects the external I2S pins by driving the
+board's codec-select signal high; the CS47L63 codec is not used for this
+digital microphone path.
+
+.. list-table:: DMM-4026-B-I2S-R to nRF5340 Audio DK
+   :header-rows: 1
+   :widths: 22 40 38
+
+   * - Microphone pin
+     - Audio DK connection
+     - Function
+   * - 3, VDD
+     - 1.8 V or 3.3 V supply
+     - Keep within microphone and DK I/O limits.
+   * - 4, GND
+     - GND
+     - Common ground.
+   * - 6, SCK/BCLK
+     - P10 BCLK, P0.14
+     - 3.072 MHz at 48 kHz sampling.
+   * - 5, WS/LRCLK
+     - P10 FSYNC, P0.16
+     - 48 kHz frame clock.
+   * - 7, SD
+     - P10 DOUT, P0.15
+     - Microphone output to nRF5340 I2S SDIN.
+   * - 1, L/R
+     - GND
+     - Select the left channel slot.
+   * - 2, CONFIG
+     - GND
+     - Normal single-microphone mode.
+
+Do not hot-plug the microphone while the board is powered. The microphone
+signal voltage must not exceed the Audio DK I/O supply.
+
+The external BME688-compatible sensor uses I2C1: SDA is P1.02 and SCL is
+P1.03. Its configured address is ``0x76`` and remains provisional pending
+hardware confirmation. Sensor power and ground must be wired to the compatible
+Audio DK supply and common ground.
+
+SENSOR mass storage
+-------------------
+
+The nRF5340 Audio DK built-in microSD holder is connected through SPI4:
+
+.. list-table:: Audio DK microSD interface
+   :header-rows: 1
+   :widths: 28 32 40
+
+   * - Signal
+     - SoC pin
+     - Description
+   * - SCK
+     - P0.08
+     - SPI clock.
+   * - MOSI
+     - P0.09
+     - Controller output, card input.
+   * - MISO
+     - P0.10
+     - Card output, controller input.
+   * - CS
+     - P0.11
+     - Chip select for the SD slot.
+
+The card appears to the firmware as disk ``SD`` and records are stored under
+``/SD:/records``. The FAT format is retained for direct PC access; its
+power-loss limitations are described in :doc:`open_items`.
+
+SENSOR/CLOUD UART wiring is documented in :doc:`interfw_link`.
 
 ..
    * - Backup storage

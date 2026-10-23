@@ -40,4 +40,12 @@ config EASNFW_IFL_UART_RX_RING_BUF_SIZE
 	default 2048
 endif
 
+config EASNFW_CLOUD_MAX_RECORD_SIZE
+	int "Maximum in-memory record transfer size"
+	range 1 65536
+	default 16384
+	help
+	  Bounds the single record buffer used while receiving and forwarding one
+	  sensor transfer. This is a volatile staging limit, not persistent storage.
+
 source "Kconfig.zephyr"

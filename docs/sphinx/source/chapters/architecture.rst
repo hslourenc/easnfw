@@ -13,9 +13,10 @@ communicating with one another over UART.
 Within each component, the firmware is organized as a small pipeline of
 Zephyr threads, one per functional stage, connected by Zephyr message
 queues (``k_msgq``). This section describes that thread layout at a high
-level; it intentionally omits details (algorithms, payload formats,
-priorities, stack sizes, buffer/memory management) that are still TBD
-elsewhere in the specification.
+level. The sensor application currently has separate sampling, processing,
+storage, and link workers. Complete record transfer, durable cloud
+acknowledgement, LTE-M transmission, FUOTA, and parts of recovery remain
+incomplete and are called out in the design and cloud-backend chapters.
 
 Design Principles
 ===================
@@ -26,12 +27,12 @@ Design Principles
   state. As a consequence, each shared resource (mass storage, NVS, the
   UART link, the LTE-M modem) is only ever accessed by a single, dedicated
   thread, which avoids the need for additional locking around it.
-* Messages are expected to be small (e.g. buffer handles/pointers and
-  metadata) rather than large payloads passed by value, to keep queue
-  memory usage bounded. Sample buffers use a fixed-size pool and explicit
-  ownership transfer. A producer must not reuse a buffer until the consumer
-  releases it, and queue exhaustion must result in a reported backpressure or
-  loss condition rather than silent data loss.
+* The sensor pipeline passes pointers to fixed-size PCM messages allocated
+  from an eight-entry memory slab. Message queues are bounded; when the slab is
+  exhausted, acquisition aborts the current track and the storage stage does
+  not commit it. This avoids silent sample loss and bounds the pipeline's
+  message memory. Target measurements and remaining validation are listed in
+  :doc:`open_items`.
 * Self-test (REQ-023), power management (REQ-039), and logging
   (REQ-040) are cross-cutting concerns and are not modeled as dedicated
   application threads at this stage:
@@ -84,8 +85,8 @@ Threads
        forwarding it downstream.
      - REQ-023, REQ-029, REQ-031, REQ-032
    * - Processing
-     - Consumes blocks of audio samples and runs the (TBD) audio
-       processing algorithm on each block.
+     - Consumes blocks of audio samples and applies the current bit-exact
+       PCM pass-through. The final algorithm is tracked in :doc:`open_items`.
      - REQ-033
    * - Storage
      - Sole owner of mass storage and NVS. Persists processed audio

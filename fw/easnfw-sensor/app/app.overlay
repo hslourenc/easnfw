@@ -31,8 +31,61 @@
     pinctrl-names = "default", "sleep";
 };
 
+/*
+ * The external BME688 uses the Zephyr BME680-compatible driver on the Audio
+ * DK Arduino I2C connector. Confirm the external sensor address and wiring
+ * before deployment.
+ */
+&i2c1 {
+	status = "okay";
+
+	easnfw_bme688: bme688@76 {
+		compatible = "bosch,bme680";
+		reg = <0x76>;
+		status = "okay";
+	};
+};
+
+/*
+ * Route I2S0 to the DMM-4026-B-I2S-R on the Audio DK P10 header, matching
+ * the known-good mic_testbed wiring.
+ */
+&gpio0 {
+	codec-interface {
+		/delete-property/ output-low;
+		output-high;
+	};
+};
+
+&pinctrl {
+	easnfw_i2s0_default: easnfw_i2s0_default {
+		group1 {
+			psels = <NRF_PSEL(I2S_SCK_M, 0, 14)>,
+				<NRF_PSEL(I2S_LRCK_M, 0, 16)>,
+				<NRF_PSEL(I2S_SDIN, 0, 15)>;
+		};
+	};
+
+	easnfw_i2s0_sleep: easnfw_i2s0_sleep {
+		group1 {
+			psels = <NRF_PSEL(I2S_SCK_M, 0, 14)>,
+				<NRF_PSEL(I2S_LRCK_M, 0, 16)>,
+				<NRF_PSEL(I2S_SDIN, 0, 15)>;
+			low-power-enable;
+		};
+	};
+};
+
+&i2s0 {
+	status = "okay";
+	pinctrl-0 = <&easnfw_i2s0_default>;
+	pinctrl-1 = <&easnfw_i2s0_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
 / {
     chosen {
         easnfw,interfw-link-uart = &uart2;
+        easnfw,environment-sensor = &easnfw_bme688;
     };
 };

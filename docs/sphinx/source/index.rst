@@ -13,9 +13,11 @@ EASNFW
    :caption: Contents:
 
    chapters/introduction
+   chapters/building
    chapters/requirements
    chapters/verification
    chapters/interfw_link
    chapters/architecture
    chapters/design
    chapters/cloud_backend
+   chapters/open_items

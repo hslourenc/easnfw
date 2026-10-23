@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "easncli"
+version = "0.1.0"
+description = "EASNFW HIL verification CLI"
+requires-python = ">=3.10"
+dependencies = ["pyserial>=3.5"]
+
+[project.scripts]
+easncli = "easncli:main"
+
+[tool.setuptools]
+py-modules = ["easncli"]

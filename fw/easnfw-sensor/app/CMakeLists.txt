@@ -17,18 +17,16 @@ target_sources(app PRIVATE
 	src/domain/audio_sampling.c
 	src/domain/env_sampling.c
 	src/domain/audio_algo.c
+	src/domain/pipeline.c
 	src/domain/interfw_link.c
 	src/domain/reset.c
 	src/domain/selftest.c
+	src/domain/time_sync.c
 	src/platform/audio_sensor_drv.c
 	src/platform/env_sensor_drv.c
 	src/platform/mass_storage.c
 	src/platform/nvs.c
-	src/platform/spi_transport.c
 	src/platform/uart.c
-	src/shared/spi_protocol.c
-	src/shared/ecoacoustic_record.c
-	src/shared/retry.c
 )
 
 target_sources_ifdef(CONFIG_EASNFW_IMAGE_TYPE_HIL app PRIVATE

@@ -210,11 +210,14 @@ enum ifl_commands {
 	/** Commands EXPOSED BY EASNFW-SENSOR (CLOUD -> SENSOR). */
 	IFL_CMD_SENSOR__RANGE_START  = 0x10, /**<  Not a command, just helper to check commands ranges */
 	IFL_CMD_SENSOR__CLOUD_READY  = 0x10, /**< EASNFW-CLOUD ready after reset. */
+	IFL_CMD_SENSOR__UTC_TIME     = 0x11, /**< UTC time and CLOUD reset reason. */
 	IFL_CMD_SENSOR__RANGE_END    = 0x7F, /**<  Not a command, just helper to check commands ranges. */
 
 	/** Commands EXPOSED BY EASNFW-CLOUD (SENSOR -> CLOUD). */
 	IFL_CMD_CLOUD__RANGE_START   = 0x80, /**<  Not a command, just helper to check commands ranges */
 	IFL_CMD_CLOUD__RESET         = 0x80, /**< RESET EASNFW-CLOUD. */
+	IFL_CMD_CLOUD__RECORD_DATA   = 0x81, /**< Transfer record data to CLOUD. */
+	IFL_CMD_CLOUD__TIME_SYNC_REQUEST = 0x82, /**< Request current cellular UTC. */
 	IFL_CMD_CLOUD__RANGE_END     = 0xEF, /**<  Not a command, just helper to check commands ranges */
 };
 
@@ -292,6 +295,12 @@ typedef struct IFL_PACKED {
     uint8_t  fw_patch;
 } ifl_cmd_payload_cloud_ready_t;
 
+/** UTC Unix epoch milliseconds and the CLOUD processor's reset-cause bits. */
+typedef struct IFL_PACKED {
+    uint64_t unix_time_ms;
+    uint32_t cloud_reset_cause;
+} ifl_cmd_payload_utc_time_t;
+
 #if !(defined(__GNUC__) || defined(__clang__))
 #  pragma pack(pop)
 #endif
@@ -308,6 +317,9 @@ _Static_assert(sizeof(easn_ack_payload_t) == 6u,
 
 _Static_assert(sizeof(easn_frag_hdr_t) == 9u,
                "easn_frag_hdr_t size must be 9 bytes");
+
+_Static_assert(sizeof(ifl_cmd_payload_utc_time_t) == 12u,
+               "UTC-time payload must be 12 bytes");
 
 _Static_assert(INTERFW_LINK_UART_MAX_PAYLOAD > sizeof(easn_frag_hdr_t),
                "INTERFW_LINK_UART_MAX_PAYLOAD must be larger than easn_frag_hdr_t size");

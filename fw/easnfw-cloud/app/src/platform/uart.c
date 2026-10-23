@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include <errno.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/uart.h>
@@ -19,14 +20,20 @@ static uint8_t rx_buffer_b[CONFIG_EASNFW_IFL_UART_RX_RING_BUF_SIZE];
 static uint8_t *current_rx_buffer;
 static easnfw_cloud_uart_rx_handler_t rx_handler;
 static bool initialized;
-static bool tx_busy;
+static struct k_mutex tx_mutex;
+static struct k_sem tx_complete;
+static int tx_status;
 
 static void uart_callback(const struct device *dev, struct uart_event *event,
 			  void *user_data)
 {
 	ARG_UNUSED(user_data);
-	if (event->type == UART_TX_DONE || event->type == UART_TX_ABORTED) {
-		tx_busy = false;
+	if (event->type == UART_TX_DONE) {
+		tx_status = 0;
+		k_sem_give(&tx_complete);
+	} else if (event->type == UART_TX_ABORTED) {
+		tx_status = -EIO;
+		k_sem_give(&tx_complete);
 	}
 	if (event->type == UART_RX_RDY && rx_handler != NULL) {
 		rx_handler(&event->data.rx.buf[event->data.rx.offset],
@@ -40,6 +47,11 @@ static void uart_callback(const struct device *dev, struct uart_event *event,
 	}
 }
 
+/**
+ * @brief Configure the cloud-side asynchronous UART2 transport.
+ *
+ * @return 0 on success or a negative errno value.
+ */
 int easnfw_cloud_uart_init(void)
 {
 	struct uart_config config = {
@@ -55,6 +67,8 @@ int easnfw_cloud_uart_init(void)
 	if (!device_is_ready(uart_dev)) {
 		return -ENODEV;
 	}
+	k_mutex_init(&tx_mutex);
+	k_sem_init(&tx_complete, 0, 1);
 	err = uart_configure(uart_dev, &config);
 	if (err != 0) {
 		return err;
@@ -67,21 +81,49 @@ int easnfw_cloud_uart_init(void)
 	return 0;
 }
 
+/**
+ * @brief Serialize and transmit one UART buffer, waiting for completion.
+ *
+ * @param data Frame bytes to send.
+ * @param len Number of bytes in @p data.
+ * @return 0 on success or a negative errno value.
+ */
 int easnfw_cloud_uart_tx(uint8_t const *data, size_t len)
 {
+	int err;
+
 	if (!initialized || data == NULL || len == 0u ||
-	    len > sizeof(tx_buffer) || tx_busy) {
+	    len > sizeof(tx_buffer)) {
 		return -EINVAL;
 	}
-	memcpy(tx_buffer, data, len);
-	tx_busy = true;
-	if (uart_tx(uart_dev, tx_buffer, len, SYS_FOREVER_US) != 0) {
-		tx_busy = false;
-		return -EIO;
+	err = k_mutex_lock(&tx_mutex, K_SECONDS(2));
+	if (err != 0) {
+		return err;
 	}
-	return 0;
+	memcpy(tx_buffer, data, len);
+	tx_status = -EIO;
+	k_sem_reset(&tx_complete);
+	err = uart_tx(uart_dev, tx_buffer, len, SYS_FOREVER_US);
+	if (err == 0) {
+		err = k_sem_take(&tx_complete, K_SECONDS(2));
+		if (err == 0) {
+			err = tx_status;
+		} else {
+			err = -ETIMEDOUT;
+		}
+	} else {
+		err = -EIO;
+	}
+	k_mutex_unlock(&tx_mutex);
+	return err;
 }
 
+/**
+ * @brief Enable asynchronous receive and install the cloud frame handler.
+ *
+ * @param handler Receives arbitrary byte chunks from the UART driver.
+ * @return 0 on success or a negative errno value.
+ */
 int easnfw_cloud_uart_rx_set(easnfw_cloud_uart_rx_handler_t handler)
 {
 	int err;

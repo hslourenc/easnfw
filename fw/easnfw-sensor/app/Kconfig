@@ -24,6 +24,46 @@ endchoice
 config EASNFW_VERIFICATION_CODE
 	def_bool EASNFW_IMAGE_TYPE_HIL
 
+config EASNFW_TRACK_LEN_SECONDS
+	int "Audio track duration (seconds)"
+	default 60
+	range 1 3600
+
+config EASNFW_INTER_TRACK_INTERVAL_SECONDS
+	int "Interval between audio tracks (seconds)"
+	default 840
+	range 0 86400
+
+config EASNFW_MAX_RECOVERY_RESETS
+	int "Reset-history capacity"
+	default 5
+	range 1 32
+
+config EASNFW_RECOVERY_RESET_WINDOW_SECONDS
+	int "Recovery reset stability window (seconds)"
+	default 120
+	range 1 86400
+
+config EASNFW_UTC_SYNC_RETRY_SECONDS
+	int "Retry interval while waiting for UTC synchronization (seconds)"
+	default 30
+	range 1 3600
+
+config EASNFW_AUDIO_SAMPLE_RATE_HZ
+	int "Audio sample rate (Hz)"
+	default 48000
+	range 8000 96000
+
+config EASNFW_AUDIO_SAMPLES_PER_BLOCK
+	int "Audio samples per processing block"
+	default 1536
+	range 64 8192
+
+config EASNFW_IFL_RX_MSGQ_SIZE
+	int "Inter-FW link receive queue depth"
+	default 8
+	range 1 32
+
 endmenu
 
 menuconfig EASNFW_IFL_UART

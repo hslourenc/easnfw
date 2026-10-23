@@ -1,8 +1,7 @@
-#include <easnfw/domain.h>
+#include <easnfw/env_sampling.h>
+#include <easnfw/env_sensor_drv.h>
 
 int env_sampling_acquire(struct easnfw_environment_sample *sample)
 {
-	/* EASNFW_TODO: Acquire BME688 values through the environmental driver. */
-	(void)sample;
-	return 0;
+	return app_env_sensor__sample(sample);
 }

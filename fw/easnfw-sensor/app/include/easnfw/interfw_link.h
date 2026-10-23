@@ -2,6 +2,7 @@
 #define EASNFW_INTERFW_LINK_H
 
 #include <interfw_link_protocol.h>
+#include <stdbool.h>
 
 /**
  * Commands accepted by EASNFW-SENSOR.
@@ -21,6 +22,11 @@ static const easn_ifl_command_entry_t easnfw_sensor_ifl_command_table[] = {
 		.flags = 0u,
 		.payload_len = sizeof(ifl_cmd_payload_cloud_ready_t),
 	},
+	{
+		.cmd_id = IFL_CMD_SENSOR__UTC_TIME,
+		.flags = 0u,
+		.payload_len = sizeof(ifl_cmd_payload_utc_time_t),
+	},
 };
 
 #define EASNFW_SENSOR_IFL_COMMAND_COUNT \
@@ -38,6 +44,20 @@ static const easn_ifl_command_entry_t easnfw_sensor_ifl_command_table[] = {
  * @return 0 on success, error code from enum easnfw_status on failure.
  */
 int ifl__reset_easnfwcloud_tx(void);
+
+/**
+ * @brief Send a stop-and-wait PING command to EASNFW-CLOUD.
+ *
+ * @return 0 on successful acknowledgement, otherwise a negative EASNFW
+ * status code.
+ */
+int ifl__ping_tx(void);
+
+/** @brief Request UTC time from EASNFW-CLOUD and wait for its link ACK. */
+int ifl__utc_time_request_tx(void);
+
+/** @brief Inject a positive PING acknowledgement for isolated HIL runs. */
+void ifl__verification_ping_override_set(bool enabled);
 
 /**
  * @brief Handler for the EASNFWCLOUD_READY command from EASNFW-CLOUD.

@@ -1,11 +1,7 @@
 #ifndef EASNFW_STATUS_H
 #define EASNFW_STATUS_H
 
-/**
- * EASNFW_TODO: add comments using doxygen style and add more status codes as
- * needed. The status codes should be unique and not overlap with errno.h
- * macros.
- */
+/** EASNFW-specific failure codes; callers return the negative enumerator. */
 enum easnfw_status {
 	EASNFW_STATUS__SELFTEST_NVS_INIT_FAILED               = 1001,
 	EASNFW_STATUS__SELFTEST_NVS_WR_FAILED                 = 1002,
@@ -15,6 +11,12 @@ enum easnfw_status {
 	EASNFW_STATUS__SELFTEST_MASS_STORAGE_WR_FAILED        = 1006,
 	EASNFW_STATUS__SELFTEST_MASS_STORAGE_RD_FAILED        = 1007,
 	EASNFW_STATUS__SELFTEST_MASS_STORAGE_RD_WR_NO_MATCH   = 1008,
+	EASNFW_STATUS__SELFTEST_AUDIO_INIT_FAILED             = 1009,
+	EASNFW_STATUS__SELFTEST_AUDIO_ACQUISITION_FAILED      = 1010,
+	EASNFW_STATUS__SELFTEST_ENVIRONMENT_INIT_FAILED       = 1011,
+	EASNFW_STATUS__SELFTEST_ENVIRONMENT_ACQUISITION_FAILED = 1012,
+	EASNFW_STATUS__SELFTEST_IFL_FAILED                    = 1013,
+	EASNFW_STATUS__SELFTEST_CLOUD_UNAVAILABLE             = 1014,
 
 	EASNFW_STATUS__INTERFW_LINK_UART_INIT_FAILED           = 2001,
 	EASNFW_STATUS__INTERFW_LINK_UART_CONFIG_FAILED         = 2002,

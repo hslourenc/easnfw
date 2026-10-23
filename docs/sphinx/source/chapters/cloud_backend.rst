@@ -88,15 +88,9 @@ Monitoring shall cover disk capacity, backup age, failed ingestion, database
 health, certificate expiration, and the last contact time of every deployed
 node.
 
-Open Decisions
-==============
+Open backend and operational decisions are maintained in :doc:`open_items`.
+CBOR-over-HTTPS remains a candidate payload format, not a settled interface.
 
-* CBOR-over-HTTPS is the initial candidate for structured node uploads; the
-  exact endpoint and schema remain to be defined.
-* The public-ingress solution depends on the laboratory network and must be
-  selected after checking public IP, NAT, firewall, and institutional security
-  constraints.
-* Retention periods for raw audio, derived artifacts, and delivered on-node
-  records must be agreed with the ecological research team.
-* The authentication mechanism for nodes and the FOTA/configuration-command
-  channel remain to be specified.
+Firmware must not report a cloud self-test or durable record delivery as
+successful until the backend contract in :doc:`open_items` is agreed and
+implemented.

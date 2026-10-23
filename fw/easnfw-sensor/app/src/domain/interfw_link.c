@@ -2,10 +2,12 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/byteorder.h>
 
 #include <easnfw/interfw_link.h>
 #include <easnfw/reset.h>
 #include <easnfw/status.h>
+#include <easnfw/time_sync.h>
 #include <easnfw/uart.h>
 #include "../../../../shared/interfw_link_protocol.h"
 
@@ -50,6 +52,7 @@ static struct k_sem ifl_ack_sem;
 
 /** Indicate whether an ACK is being waited for. */
 static bool ifl_ack_waiting;
+static bool ifl_verification_ping_override;
 
 static uint8_t ifl_ack_cmd;
 static uint8_t ifl_ack_seq;
@@ -182,13 +185,13 @@ static void ifl__ack_tx(easn_frame_hdr_t const *const command_header,
 		.reserved = 0u,
 		.next_offset = 0u,
 	};
-	uint16_t const crc = ifl__crc16(&frame[1],
-					INTERFW_LINK_UART_HDR_SIZE +
-					sizeof(payload) - 1u);
+	uint16_t crc;
 	int err;
 
 	memcpy(frame, &header, sizeof(header));
 	memcpy(&frame[INTERFW_LINK_UART_HDR_SIZE], &payload, sizeof(payload));
+	crc = ifl__crc16(&frame[1],
+			 INTERFW_LINK_UART_HDR_SIZE + sizeof(payload) - 1u);
 	frame[sizeof(frame) - 2u] = (uint8_t)(crc & 0xFFu);
 	frame[sizeof(frame) - 1u] = (uint8_t)(crc >> 8);
 
@@ -233,6 +236,26 @@ static ifl_status_t ifl__received_command_status(
 			return ifl__easnfwcloud_ready_rx() == 0
 				? IFL_STAT__OK
 				: IFL_STAT__INTERNAL_ERR;
+		}
+		if (header->cmd_id == IFL_CMD_SENSOR__UTC_TIME) {
+			uint64_t utc_ms;
+			uint32_t cloud_reset_cause;
+
+			if (payload == NULL) {
+				return IFL_STAT__BAD_PARAM;
+			}
+			utc_ms = sys_get_le64(payload);
+			cloud_reset_cause = sys_get_le32(
+				payload + sizeof(utc_ms));
+			if (app_utc_time__set(utc_ms) != 0) {
+				LOG_ERR("Rejected invalid UTC time from CLOUD");
+				return IFL_STAT__BAD_PARAM;
+			}
+			if (reset__cloud_reason_set(cloud_reset_cause) != 0) {
+				LOG_WRN("Could not persist CLOUD reset cause");
+			}
+			LOG_INF("UTC time synchronized from cellular network");
+			return IFL_STAT__OK;
 		}
 
 		return IFL_STAT__OK;
@@ -525,6 +548,29 @@ int ifl__reset_easnfwcloud_tx(void)
 	 * ifl__cmd_tx() already handles retriable ACK status and ACK timeout.
 	 */
 	return ifl__cmd_tx(IFL_CMD_CLOUD__RESET, NULL, 0u);
+}
+
+/** Set the HIL-only response override used to test the IFL success path. */
+void ifl__verification_ping_override_set(bool enabled)
+{
+	ifl_verification_ping_override = enabled;
+}
+
+/** Verify the peer is responsive with a stop-and-wait PING. */
+int ifl__ping_tx(void)
+{
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	if (ifl_verification_ping_override) {
+		return 0;
+	}
+#endif
+	return ifl__cmd_tx(IFL_CMD_COMMON__PING, NULL, 0u);
+}
+
+/** Request a time synchronization response from EASNFW-CLOUD. */
+int ifl__utc_time_request_tx(void)
+{
+	return ifl__cmd_tx(IFL_CMD_CLOUD__TIME_SYNC_REQUEST, NULL, 0u);
 }
 
 int ifl__easnfwcloud_ready_rx(void)
