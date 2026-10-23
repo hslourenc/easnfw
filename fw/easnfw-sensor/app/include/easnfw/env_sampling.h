@@ -1,3 +1,10 @@
+/**
+ * @file env_sampling.h
+ * @brief Environmental sample representation and acquisition interface.
+ *
+ * Values use fixed-point SI units so records can be transferred and persisted
+ * without floating-point conversion in the pipeline.
+ */
 #ifndef EASNFW_ENV_SAMPLING_H
 #define EASNFW_ENV_SAMPLING_H
 
@@ -11,7 +18,7 @@ struct easnfw_environment_sample {
 	uint32_t gas_resistance_ohms;
 };
 
-/** Read temperature, pressure, humidity, and gas resistance. */
+/** Read temperature, pressure, relative humidity, and gas resistance. */
 int env_sampling_acquire(struct easnfw_environment_sample *sample);
 
 #endif

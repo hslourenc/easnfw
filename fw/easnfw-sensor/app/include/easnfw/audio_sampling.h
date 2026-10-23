@@ -1,3 +1,10 @@
+/**
+ * @file audio_sampling.h
+ * @brief Domain interface for acquiring mono PCM16 blocks from I2S.
+ *
+ * A block contains the sequence number and configured fixed sample count used
+ * by the processing and storage pipeline.
+ */
 #ifndef EASNFW_AUDIO_SAMPLING_H
 #define EASNFW_AUDIO_SAMPLING_H
 

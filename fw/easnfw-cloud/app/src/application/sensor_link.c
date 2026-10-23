@@ -375,7 +375,8 @@ static void handle_frame(struct ifl_frame const *frame)
 	}
 
 	/* Link-level duplicate suppression: resend the cached ACK, do not re-run. */
-	if (last_rx_valid && header.cmd_id == last_rx_command &&
+	if (last_rx_valid &&
+	    (header.flags & EASN_FLAG_RETRANSMIT) != 0u && header.cmd_id == last_rx_command &&
 	    header.seq == last_rx_sequence) {
 		(void)send_ack(&header, last_rx_status, last_rx_offset);
 		return;

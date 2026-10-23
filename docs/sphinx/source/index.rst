@@ -14,6 +14,7 @@ EASNFW
 
    chapters/introduction
    chapters/building
+   chapters/source_api
    chapters/requirements
    chapters/verification
    chapters/interfw_link

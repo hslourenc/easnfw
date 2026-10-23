@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from datetime import datetime
@@ -14,17 +15,19 @@ import serial
 from serial.tools import list_ports
 
 HIL_TEST_CASES = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 20, 42, 46, 48)
+# Documented cases without any CLI_H automation.
 INCOMPLETE_TEST_CASES = (
-    "005", "007", "011", "013", "014", "015", "016", "016a", "017",
-    "018", "019", "021", "022", "023", "023a", "023b", "023c", "025",
-    "025a", "026", "027", "028", "029", "030", "031", "032", "033",
-    "034", "035", "035a", "035b", "036", "037", "038", "039", "039a",
-    "039b", "040", "040a", "041", "043", "044", "044a", "045",
-    "047", "048", "049", "049a", "050", "051", "053", "054",
-    "055", "056",
+    14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+    34, 35, 36, 37, 38, 39, 40, 41, 43, 44, 45, 47, 49, 50, 51, 53, 54, 55,
+    56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68,
 )
+NOT_FULLY_IMPLEMENTED = "not fully implemented"
 HUMAN_INTERVENTION_CASES = {5, 7}
-PARTIALLY_IMPLEMENTED_HIL_CASES = {5, 7, 11, 13, 48}
+# Implemented in firmware but depending on optional bench hardware.
+ENV_SENSOR_CASES = {7}
+SIM_CASES = {48}
+# Firmware or test is incomplete; these count as not implemented.
+PARTIALLY_IMPLEMENTED_HIL_CASES = {5, 11, 13}
 
 
 def select_port(requested: str | None) -> str:
@@ -55,6 +58,16 @@ def wait_for_status(port: serial.Serial, statuses: tuple[str, ...],
     )
 
 
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
+def status_message(status_line: str) -> str:
+    """Return the text from ``TCSTATUS_`` onward without terminal escapes."""
+    start = status_line.find("TCSTATUS_")
+    message = status_line[start:] if start >= 0 else status_line
+    return ANSI_ESCAPE_RE.sub("", message).strip()
+
+
 def result_from_status(status_line: str) -> dict[str, object]:
     """Convert a host-side status line into the documented result schema."""
     passed = "TCSTATUS_FAIL" not in status_line
@@ -63,7 +76,7 @@ def result_from_status(status_line: str) -> dict[str, object]:
         "passed": passed,
         "need_further_verif": inconclusive,
         "further_verif_type": "cloud-backend" if inconclusive else None,
-        "message": status_line,
+        "message": status_message(status_line),
         "data": [],
     }
 
@@ -123,36 +136,49 @@ def run_tc(test_case: int, requested_port: str | None,
     return result
 
 
+def print_banner(title: str) -> None:
+    """Print a prominent header that separates sections of the output."""
+    bar = "=" * 72
+    print(f"\n{bar}\n{title.center(72)}\n{bar}\n")
+
+
+def format_cases(cases: list[int]) -> str:
+    """Format a list of test case numbers for the summary."""
+    return ", ".join(str(case) for case in cases) if cases else "none"
+
+
 def run_tcfull(requested_port: str | None, implemented_only: bool = False,
-               no_human: bool = False) -> int:
+               no_human: bool = False, no_env_sensor: bool = False,
+               no_sim: bool = False) -> int:
     """Run selected HIL cases and aggregate only cases that were executed."""
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     result_dir = Path(f"tc-full-{timestamp}")
     result_dir.mkdir()
-    test_cases = [
-        case for case in HIL_TEST_CASES
-        if not implemented_only or case not in PARTIALLY_IMPLEMENTED_HIL_CASES
+    # Documented cases without CLI_H automation cannot run in any selection.
+    skipped = [
+        {"test_case": case, "reason": NOT_FULLY_IMPLEMENTED}
+        for case in INCOMPLETE_TEST_CASES
+        if case not in HIL_TEST_CASES
     ]
-    if no_human:
-        test_cases = [
-            case for case in test_cases
-            if case not in HUMAN_INTERVENTION_CASES
-        ]
-
-    individual_results: list[dict[str, object]] = []
-    skipped = []
+    test_cases = []
     for case in HIL_TEST_CASES:
         reasons = []
         if implemented_only and case in PARTIALLY_IMPLEMENTED_HIL_CASES:
-            reasons.append("not completely implemented")
+            reasons.append(NOT_FULLY_IMPLEMENTED)
         if no_human and case in HUMAN_INTERVENTION_CASES:
             reasons.append("requires human intervention")
+        if no_env_sensor and case in ENV_SENSOR_CASES:
+            reasons.append("requires environmental sensor")
+        if no_sim and case in SIM_CASES:
+            reasons.append("requires SIM")
         if reasons:
-            skipped.append({
-                "test_case": case,
-                "reason": "; ".join(reasons),
-            })
+            skipped.append({"test_case": case, "reason": "; ".join(reasons)})
+        else:
+            test_cases.append(case)
 
+    individual_results: list[dict[str, object]] = []
+
+    print_banner("TEST CASE LOGS")
     for test_case in test_cases:
         case_dir = result_dir / f"tc-{test_case:03d}"
         try:
@@ -173,16 +199,36 @@ def run_tcfull(requested_port: str | None, implemented_only: bool = False,
             "message": result["message"],
         })
 
+    skipped.sort(key=lambda item: item["test_case"])
+    executed = [item["test_case"] for item in individual_results]
+    passed = [item["test_case"] for item in individual_results
+              if item["passed"]]
+    failed = [item["test_case"] for item in individual_results
+              if not item["passed"]]
+    skipped_cases = [item["test_case"] for item in skipped]
     aggregate = {
-        "success": bool(individual_results) and
-        all(item["passed"] for item in individual_results),
+        "success": bool(individual_results) and not failed,
+        "executed_count": len(executed),
+        "executed": executed,
+        "skipped_count": len(skipped_cases),
+        "skipped_cases": skipped_cases,
+        "passed_count": len(passed),
+        "passed": passed,
+        "failed_count": len(failed),
+        "failed": failed,
         "individual_results": individual_results,
         "skipped": skipped,
     }
     (result_dir / "result.json").write_text(
         json.dumps(aggregate, indent=2) + "\n", encoding="utf-8"
     )
+    print_banner("FINAL RESULTS (result.json)")
     print(json.dumps(aggregate, indent=2))
+    print_banner("RESULTS SUMMARY")
+    for label, cases in (("executed", executed), ("skipped", skipped_cases),
+                         ("passed", passed), ("failed", failed)):
+        print(f"Number of {label} tests: {len(cases)}")
+        print(f"{label.capitalize()} tests: {format_cases(cases)}")
     return 0 if aggregate["success"] else 1
 
 
@@ -220,6 +266,14 @@ def main() -> int:
         help="exclude HIL cases that are not completely implemented",
     )
     full_parser.add_argument(
+        "--no-env-sensor", action="store_true",
+        help="exclude HIL cases that require the environmental sensor",
+    )
+    full_parser.add_argument(
+        "--no-sim", action="store_true",
+        help="exclude HIL cases that require a SIM and cellular service",
+    )
+    full_parser.add_argument(
         "--no-human", action="store_true",
         help="exclude HIL cases that require human intervention",
     )
@@ -238,6 +292,8 @@ def main() -> int:
             args.port,
             implemented_only=args.implemented_only,
             no_human=args.no_human,
+            no_env_sensor=args.no_env_sensor,
+            no_sim=args.no_sim,
         )
     except (RuntimeError, TimeoutError, ValueError, serial.SerialException) as exc:
         print(f"easncli: {exc}", file=sys.stderr)

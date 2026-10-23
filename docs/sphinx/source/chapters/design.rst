@@ -14,6 +14,11 @@ thread modules focused on sequencing and data pipeline handling, while
 the underlying logic and hardware access stay independently reusable and
 testable.
 
+The public C APIs and their source-owned contracts are rendered directly from
+the headers in :doc:`source_api`. The module tables below are architectural
+overviews; update detailed API behavior in the headers rather than duplicating
+it here.
+
 As with the architecture document, this design intentionally stays at a high
 level. The unresolved algorithm, backend, hardware-validation, and update
 decisions are maintained in :doc:`open_items`.

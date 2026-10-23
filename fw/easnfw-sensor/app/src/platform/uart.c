@@ -14,6 +14,9 @@ LOG_MODULE_REGISTER(easnfw_ifl_uart, LOG_LEVEL_INF);
 
 static const struct device *ifl_uart_dev =
 	DEVICE_DT_GET(DT_CHOSEN(easnfw_interfw_link_uart));
+/** Maximum time a single IFL frame may take to transmit. */
+#define IFL_TX_TIMEOUT_MS 200
+
 static uint8_t ifl_tx_buffer[INTERFW_LINK_UART_MAX_FRAME_SIZE];
 static uint8_t ifl_rx_buffer_a[CONFIG_EASNFW_IFL_UART_RX_RING_BUF_SIZE];
 static uint8_t ifl_rx_buffer_b[CONFIG_EASNFW_IFL_UART_RX_RING_BUF_SIZE];
@@ -53,8 +56,16 @@ static void ifl_uart_callback(const struct device *dev,
 			LOG_ERR("Failed to provide next IFL UART RX buffer");
 		}
 	} else if (evt->type == UART_RX_DISABLED) {
+		/* A line error (e.g. peer reset glitch) disables RX; restart it. */
 		ifl_rx_enabled = false;
-		LOG_WRN("IFL UART RX disabled");
+		LOG_WRN("IFL UART RX disabled, re-enabling");
+		ifl_current_rx_buffer = ifl_rx_buffer_a;
+		if (uart_rx_enable(dev, ifl_current_rx_buffer,
+				   sizeof(ifl_rx_buffer_a),
+				   CONFIG_EASNFW_IFL_UART_RX_INTERBYTE_TIMEOUT_MS *
+				   1000u) == 0) {
+			ifl_rx_enabled = true;
+		}
 	}
 }
 
@@ -130,8 +141,13 @@ int uart__ifl_tx(uint8_t const *data, size_t const len)
 	/* Copy before starting DMA; the caller's buffer may be short-lived. */
 	memcpy(ifl_tx_buffer, data, len);
 	ifl_tx_busy = true;
-	/* SYS_FOREVER_US lets hardware flow control determine completion time. */
-	err = uart_tx(ifl_uart_dev, ifl_tx_buffer, len, SYS_FOREVER_US);
+	/*
+	 * Bounded timeout: if the peer is in reset its RTS (our CTS) may stall
+	 * the transfer, and the abort releases the TX buffer instead of
+	 * leaving the transport busy forever.
+	 */
+	err = uart_tx(ifl_uart_dev, ifl_tx_buffer, len,
+		      IFL_TX_TIMEOUT_MS * USEC_PER_MSEC);
 	if (err != 0) {
 		ifl_tx_busy = false;
 		LOG_ERR("IFL UART TX failed to start (%d)", err);

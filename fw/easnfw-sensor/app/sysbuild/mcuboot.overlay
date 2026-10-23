@@ -1,0 +1,4 @@
+/* The Audio DK board controller enables hardware flow control on VCOM0. */
+&uart0 {
+	hw-flow-control;
+};

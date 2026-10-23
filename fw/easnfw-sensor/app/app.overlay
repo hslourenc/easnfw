@@ -89,3 +89,11 @@
         easnfw,environment-sensor = &easnfw_bme688;
     };
 };
+
+/*
+ * The Audio DK board controller enables hardware flow control on VCOM0. Without
+ * it on the nRF5340 side, console output (including MCUboot's) loses characters.
+ */
+&uart0 {
+	hw-flow-control;
+};

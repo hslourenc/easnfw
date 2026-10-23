@@ -1,3 +1,11 @@
+/**
+ * @file pipeline.h
+ * @brief Bounded message types and buffer ownership for the CLOUD pipeline.
+ *
+ * The receive path stages at most one full record in volatile memory. A
+ * descriptor carries ownership of that buffer between pipeline stages until
+ * the result relay releases it.
+ */
 #ifndef EASNFW_PIPELINE_H
 #define EASNFW_PIPELINE_H
 

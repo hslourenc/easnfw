@@ -147,10 +147,10 @@ static void ifl__rx_frame_valid(void)
 	}
 
 	if (header.type == EASN_FRAME_CMD) {
-		struct ifl_received_frame received = {
-			.len = ifl_rx_frame_expected_len,
-		};
+		/* Static: too large for the callback or RX worker stacks. */
+		static struct ifl_received_frame received;
 
+		received.len = ifl_rx_frame_expected_len;
 		memcpy(received.data, ifl_rx_frame, received.len);
 		if (k_msgq_put(&ifl_rx_msgq, &received, K_NO_WAIT) != 0) {
 			LOG_WRN("Dropping queued IFL command cmd=0x%02x: queue full",
@@ -267,7 +267,8 @@ static ifl_status_t ifl__received_command_status(
 /** Consume complete commands, execute them, and return their ACK status. */
 static void ifl__rx_worker(void *arg1, void *arg2, void *arg3)
 {
-	struct ifl_received_frame received;
+	/* Static: a full frame does not fit on the worker stack. */
+	static struct ifl_received_frame received;
 
 	ARG_UNUSED(arg1);
 	ARG_UNUSED(arg2);
@@ -282,7 +283,12 @@ static void ifl__rx_worker(void *arg1, void *arg2, void *arg3)
 		memcpy(&header, received.data, sizeof(header));
 		payload = &received.data[INTERFW_LINK_UART_HDR_SIZE];
 
+		/*
+		 * Only retransmissions are duplicates: a rebooted peer restarts
+		 * its sequence numbers and must not be mistaken for a retry.
+		 */
 		if (ifl_state.last_rx_seq_valid &&
+		    ((header.flags & EASN_FLAG_RETRANSMIT) != 0u) &&
 		    (header.cmd_id == ifl_last_rx_cmd) &&
 		    (header.seq == ifl_last_rx_seq)) {
 			/* The original ACK may have been lost; do not execute twice. */
@@ -306,6 +312,16 @@ K_THREAD_DEFINE(ifl_rx_thread_id, IFL_RX_THREAD_STACK_SIZE, ifl__rx_worker,
 /** Incrementally assemble frames from arbitrary asynchronous RX chunks. */
 static void ifl__rx_data_handler(uint8_t const *data, size_t const len)
 {
+	static int64_t last_byte_ms;
+	int64_t const now_ms = k_uptime_get();
+
+	/* Drop a stale partial frame so a glitch cannot swallow later frames. */
+	if ((ifl_rx_frame_len != 0u) &&
+	    ((now_ms - last_byte_ms) > INTERFW_LINK_UART_RX_INTERBYTE_TIMEOUT_MS)) {
+		ifl__rx_frame_reset();
+	}
+	last_byte_ms = now_ms;
+
 	for (size_t i = 0u; i < len; ++i) {
 		uint8_t const byte = data[i];
 

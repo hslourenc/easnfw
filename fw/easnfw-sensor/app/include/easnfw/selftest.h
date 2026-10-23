@@ -3,12 +3,12 @@
 
 /** Bit assignments stored in the NVS self-test failure mask. */
 enum easnfw_selftest_failure {
-	EASNFW_SELFTEST_FAILURE_NVS = 1U << 0,
-	EASNFW_SELFTEST_FAILURE_MASS_STORAGE = 1U << 1,
-	EASNFW_SELFTEST_FAILURE_AUDIO = 1U << 2,
-	EASNFW_SELFTEST_FAILURE_ENVIRONMENT = 1U << 3,
-	EASNFW_SELFTEST_FAILURE_IFL = 1U << 4,
-	EASNFW_SELFTEST_FAILURE_CLOUD = 1U << 5,
+	EASNFW_SELFTEST_FAILURE_NVS = 1U << 0, /**< NVS check failed. */
+	EASNFW_SELFTEST_FAILURE_MASS_STORAGE = 1U << 1, /**< Mass-storage check failed. */
+	EASNFW_SELFTEST_FAILURE_AUDIO = 1U << 2, /**< Audio acquisition check failed. */
+	EASNFW_SELFTEST_FAILURE_ENVIRONMENT = 1U << 3, /**< Environmental acquisition check failed. */
+	EASNFW_SELFTEST_FAILURE_IFL = 1U << 4, /**< Inter-FW Link check failed. */
+	EASNFW_SELFTEST_FAILURE_CLOUD = 1U << 5, /**< Cloud connectivity check failed. */
 };
 
 /**

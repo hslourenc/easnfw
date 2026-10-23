@@ -6,3 +6,7 @@ doc/requirements/out/*.toc
 *.bak
 build/
 .vscode/
+.github/skills/
+tc-*/
+__pycache__
+*.egg-info/

@@ -128,7 +128,8 @@ void cli__wait_for_shell_ready(void)
 	while (!shell_ready(shell_backend_uart_get_ptr())) {
 		k_msleep(10);
 	}
-	LOG_INF("TCSTATUS_RESETDONE - reset complete");
+	shell_print(shell_backend_uart_get_ptr(),
+		    "TCSTATUS_RESETDONE - reset complete");
 }
 
 SHELL_CMD_ARG_REGISTER(easnfwcli2_tc, NULL, "Run a test case", cli__cmd_tc, 2, 1);

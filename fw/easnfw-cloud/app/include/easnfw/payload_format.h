@@ -1,3 +1,10 @@
+/**
+ * @file payload_format.h
+ * @brief Cloud-ingestion payload serialization interface.
+ *
+ * The final backend schema is not yet defined; this interface is the
+ * serialization boundary to update when that contract is agreed.
+ */
 #ifndef EASNFW_PAYLOAD_FORMAT_H
 #define EASNFW_PAYLOAD_FORMAT_H
 

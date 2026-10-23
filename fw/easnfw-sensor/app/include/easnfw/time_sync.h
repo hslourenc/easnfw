@@ -1,3 +1,11 @@
+/**
+ * @file time_sync.h
+ * @brief Runtime UTC synchronization and timestamp formatting interface.
+ *
+ * The current UTC anchor is valid only for the current boot and advances from
+ * Zephyr's monotonic uptime. Callers must treat UTC as unavailable until a
+ * time anchor has been received from CLOUD.
+ */
 #ifndef EASNFW_TIME_SYNC_H
 #define EASNFW_TIME_SYNC_H
 

@@ -65,6 +65,17 @@ normal CLOUD image to the nRF9151 board. Connect UART2 between the development
 kits as described in :doc:`interfw_link`; keep the SENSOR USB VCOM connected
 for CLI_H, logs, and CLI_C.
 
+In the HIL image, UART0/VCOM0 is configured by the Audio DK as 115200 baud,
+8-N-1, with no flow control. The serial shell is also the log backend, avoiding
+independent shell and logging transmitters writing to the same UART. Use these
+serial settings when opening the port manually; CLI_C uses the same baud rate.
+The Audio DK board controller enables hardware flow control on VCOM0, so
+SENSOR's ``app.overlay`` and ``sysbuild/mcuboot.overlay`` set
+``hw-flow-control`` on UART0. Without it, console output loses characters.
+If VCOM0 output is garbled or the shell does not respond even with these
+settings, power-cycle the Audio DK (USB and power) to restore its board
+controller's serial bridge before debugging the firmware.
+
 Image Signing
 =============
 
@@ -126,6 +137,7 @@ cases that do not require human intervention:
    easncli tcfull
    easncli tcfull --implemented-only
    easncli tcfull --no-human
+   easncli tcfull --no-env-sensor --no-sim
    easncli cases
 
 See :doc:`verification` for result semantics and current test coverage.

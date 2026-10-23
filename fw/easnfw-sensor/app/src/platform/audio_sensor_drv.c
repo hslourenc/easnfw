@@ -29,7 +29,8 @@ int app_audio_sensor__init(void)
 		.word_size = 32U,
 		.channels = 1U,
 		.format = I2S_FMT_DATA_FORMAT_I2S,
-		.options = I2S_OPT_BIT_CLK_MASTER | I2S_OPT_FRAME_CLK_MASTER,
+		.options = I2S_OPT_BIT_CLK_CONTROLLER |
+			   I2S_OPT_FRAME_CLK_CONTROLLER,
 		.frame_clk_freq = CONFIG_EASNFW_AUDIO_SAMPLE_RATE_HZ,
 		.mem_slab = &i2s_rx_slab,
 		.block_size = RAW_BLOCK_BYTES,

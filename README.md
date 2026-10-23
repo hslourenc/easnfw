@@ -4,6 +4,15 @@ Firmware for the EASN (ecoacoustic sensing node), an ecoacoustic data
 acquisition device. EASNFW controls the node hardware to acquire, process and
 transmit ecoacoustic data to a cloud platform.
 
+The Sphinx documentation under `docs/sphinx/source` is the authoritative
+project documentation. This README is a repository entry point and quick
+reference; consult the Sphinx [introduction](docs/sphinx/source/chapters/introduction.rst),
+[build and signing guide](docs/sphinx/source/chapters/building.rst),
+[verification chapter](docs/sphinx/source/chapters/verification.rst),
+[Inter-FW Link protocol](docs/sphinx/source/chapters/interfw_link.rst), and
+[open-items register](docs/sphinx/source/chapters/open_items.rst) for current
+details.
+
 EASNFW is subdivided into two components:
 
 - **EASNFW-SENSOR** — runs on the nRF5340 SoC (nRF5340 Audio DK) and is
@@ -17,26 +26,25 @@ EASNFW is subdivided into two components:
 - `docs/sphinx/source/` — source for requirements, architecture, design,
   verification, and cloud-backend documentation
 - `docs/sphinx/build/html/` — locally generated documentation site
-- `fw/` — firmware source code
+- `fw/easnfw-sensor/app/` — nRF5340 Audio DK firmware, including acquisition,
+  processing, SD/NVS storage, inter-FW link, and HIL host CLI
+- `fw/easnfw-cloud/app/` — nRF9151 DK firmware, including LTE-M/cloud-facing
+  functionality
+- `fw/shared/` — protocol definitions shared by both firmware images
+- `tools/easncli/` — Python CLI_C that drives the sensor HIL shell
+- `tools/mic_testbed/` — known-good I2S microphone and SD-card capture example
 
 ## Building the documentation
 
-### Prerequisites
+For the full and authoritative build instructions, see the
+[Building and Signing](docs/sphinx/source/chapters/building.rst) chapter.
+Requirements include Python packages from `docs/requirements.txt`, Java, and a
+PlantUML jar.
 
-- Python and the packages listed in `docs/requirements.txt`.
-- Java and a PlantUML jar for generating the diagrams.
-
-### Steps
-
-Install the documentation dependencies:
+Quick build:
 
 ```sh
 python -m pip install -r docs/requirements.txt
-```
-
-Set `PLANTUML_JAR` to a PlantUML jar and build the HTML site:
-
-```sh
 PLANTUML_JAR=/path/to/plantuml.jar make -C docs/sphinx html
 ```
 
@@ -100,29 +108,118 @@ The output is written to `docs/sphinx/build/html`.
     and EASNFW-CLOUD with:
 
     ```
-    west build --pristine -b nrf9151dk/nrf9151 fw/easnfw-cloud/app --build-dir fw/easnfw-cloud/app/build
+    west build --pristine -b nrf9151dk/nrf9151/ns fw/easnfw-cloud/app --build-dir fw/easnfw-cloud/app/build
     ```
 
-    The default image type is the development image. To build a different image
-    type append ` -- -DCONFIG_EASNFW_IMAGE_TYPE_<TYPE>` to the provided
-    commands, replacing `<TYPE>` with the identifier of the desired image type:
-    `PRODUCTION`, `DEVELOPMENT` (already the default), `DEBUG` or `HIL`.
+    The CLOUD image uses the non-secure nRF9151 target because the LTE modem
+    library and network date-time service require non-secure execution.
 
-## Running the minimal HIL CLI
+    The default image type is the development image. To build a different
+    image, create a Kconfig fragment and pass it using
+    `-DEXTRA_CONF_FILE=/path/relative/to/the/application/fragment.conf`; for
+    example, the sensor HIL image uses `hil.conf` as described below.
+    Image choices are `PRODUCTION`, `DEVELOPMENT` (the default), `DEBUG`, and
+    `HIL`.
 
-The HIL image exposes the secondary commands used by the verification flow.
-Install the host CLI from `tools/easncli` after connecting the sensor DK over
-USB:
+Both applications enable MCUboot with ECDSA-P256 image verification and
+swap-based rollback. The SDK's development signing key is used by default;
+never ship an image built with that key. Keep the production private key outside
+the repository and select it at build time, for example:
+
+```sh
+west build --pristine -b nrf5340_audio_dk/nrf5340/cpuapp \
+  fw/easnfw-sensor/app --build-dir fw/easnfw-sensor/app/build \
+  -- -DSB_CONFIG_BOOT_SIGNATURE_KEY_FILE=/secure/path/easnfw-signing.pem
+```
+
+The CLOUD build uses the same `SB_CONFIG_BOOT_SIGNATURE_KEY_FILE` override
+with its nRF9151 non-secure board target. SENSOR confirms a candidate image
+after its self-tests, UTC synchronization, and reset-history update succeed;
+CLOUD currently confirms after its local IFL initialization because its backend
+health contract is not yet defined. An unconfirmed candidate is eligible for
+MCUboot rollback on a subsequent reset; firmware does not initiate recovery
+resets automatically. See [Building and Signing](docs/sphinx/source/chapters/building.rst)
+for signing-key and artifact details. Network download, update authorization,
+and coordinated SENSOR/CLOUD rollout remain unimplemented; see the Sphinx
+[open-items register](docs/sphinx/source/chapters/open_items.rst).
+
+## Building the HIL verification image
+
+`hil.conf` is an additional Zephyr Kconfig fragment, not a standalone
+configuration. Build it with `EXTRA_CONF_FILE` (from the repository root):
+
+```sh
+west build --pristine -b nrf5340_audio_dk/nrf5340/cpuapp \
+  fw/easnfw-sensor/app --build-dir fw/easnfw-sensor/app/build \
+  -- -DEXTRA_CONF_FILE=hil.conf
+```
+
+In the HIL image, logs and shell output share the shell's UART backend on
+UART0/VCOM0. This avoids competing UART transmitters that can scramble the
+console output. Open VCOM0 at 115200 baud, 8-N-1, with no flow control; this is
+also the setting used by CLI_C. The Audio DK board controller enables
+hardware flow control on VCOM0, so the SENSOR application and MCUboot enable
+it in their devicetree (`app.overlay`, `sysbuild/mcuboot.overlay`); without it
+console characters are lost. If VCOM0 is garbled or unresponsive regardless,
+power-cycle the Audio DK to restore the board controller's serial bridge.
+
+Flash the normal EASNFW-CLOUD image to the nRF9151 DK and connect the two
+boards using the UART2 wiring in
+[`interfw_link.rst`](docs/sphinx/source/chapters/interfw_link.rst). The sensor
+DK USB VCOM remains the CLI/log interface.
+
+For first bring-up, make all inter-board signal and ground connections with
+both boards unpowered; do not connect their power rails together. Verify that
+the I/O voltage levels match. Flash both boards, connect both to USB, then boot
+SENSOR before CLOUD so its IFL receiver is ready for CLOUD's startup handshake.
+Keep both powered and connected while running HIL tests; CLI_C coordinates
+resets between test cases.
+
+## Running HIL test cases
+
+Install the host CLI from `tools/easncli`:
 
 ```sh
 python -m pip install -e tools/easncli
 easncli tc 1
 ```
 
-The CLI automatically selects the only serial port visible to the host. Use
-`easncli tc 1 --port /dev/ttyACM0` when more than one serial port is present.
-It creates a timestamped `tc-001-*` directory containing the result JSON and
-logs.
+CLI_C currently exposes TC-001 through TC-013, TC-020, TC-042, TC-046, and
+TC-048. Use the following primary commands to run suites or inspect coverage:
 
-    `--pristine` is recommended when changing image types so that the previous
-    image configuration is removed.
+```sh
+easncli tcfull
+easncli tcfull --implemented-only
+easncli tcfull --no-human
+easncli tcfull --no-env-sensor --no-sim
+easncli cases
+```
+
+`--implemented-only` skips cases that are not completely implemented,
+`--no-human` skips cases requiring human intervention, `--no-env-sensor` skips
+cases requiring the environmental sensor, and `--no-sim` skips cases requiring
+a SIM. See the Sphinx
+[verification chapter](docs/sphinx/source/chapters/verification.rst) for the
+coverage catalog, meanings, and aggregate-result behavior. The CLI
+automatically selects the only serial port visible to the host; use
+`easncli tc 1 --port /dev/ttyACM0` when more than one serial port is present.
+Each run creates a timestamped directory containing `result.json` and device
+and CLI logs.
+
+The current bench has no external environmental sensor or SIM. TC-007 depends
+on the environmental sensor, and TC-048 needs cellular service and a SIM to
+complete UTC synchronization; both are implemented but cannot be fully verified
+on this setup. Run
+`easncli tcfull --implemented-only --no-human --no-env-sensor --no-sim` to
+exclude them. TC-048 can still be run individually, but without
+cellular service it ends inconclusively.
+
+Use `--pristine` when changing image types so that the previous configuration
+is removed.
+
+The current microphone, environmental-sensor, and SD-card connections are
+documented in the Sphinx [hardware overview](docs/sphinx/source/chapters/introduction.rst).
+The IFL pins and wire protocol are documented in
+[Inter-FW Link](docs/sphinx/source/chapters/interfw_link.rst). Remaining
+scientific, durability, backend, and update questions are centralized in the
+[open-items register](docs/sphinx/source/chapters/open_items.rst).

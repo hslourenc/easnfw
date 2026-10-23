@@ -121,12 +121,16 @@ content:
 * `further_verif_type`: string that indicates how the test case results are
   supposed to be further verified if `need_further_verif` is `true`, `null`
   otherwise.
-* `message`: message from CLI_H.
+* `message`: status message from CLI_H, starting at the `TCSTATUS_` marker with
+  shell prompt and terminal color escape sequences removed.
 * `data`: list of strings indicating the path to the any additional files
   created (e.g. path to the file of the raw audio track).
 
-The contents of ``result.json`` are printed to the terminal in a user-friendly
-way.
+Test case numbers are always integers in the JSON output.
+
+The terminal output has three sections separated by banners: the logs of each
+test case, the contents of ``result.json``, and a ``RESULTS SUMMARY`` with the
+number and list of executed, skipped, passed, and failed test cases.
 
 The results are organized within a new directory relative to where the command
 was run. This new directory is structured as follows:
@@ -157,7 +161,8 @@ easncli tcfull
 Format
 ^^^^^^
 
-``easncli tcfull [--port PORT] [--implemented-only] [--no-human]``
+``easncli tcfull [--port PORT] [--implemented-only] [--no-human]
+[--no-env-sensor] [--no-sim]``
 
 Description
 ^^^^^^^^^^^
@@ -168,17 +173,23 @@ TC-020, TC-042, TC-046, and TC-048.
 Options
 ^^^^^^^
 
-* ``--implemented-only`` excludes test cases that remain partially
-  implemented. This currently excludes TC-005, TC-007, TC-011, TC-013, and
-  TC-048.
+* ``--implemented-only`` excludes test cases whose firmware or test is only
+  partially implemented; these count as not fully implemented. This currently
+  excludes TC-005, TC-011, and TC-013.
 * ``--no-human`` excludes test cases that require a person to verify sensor
   behavior or physical connections. This currently excludes TC-005 and
   TC-007.
+* ``--no-env-sensor`` excludes test cases that require the external
+  environmental sensor. This currently excludes TC-007.
+* ``--no-sim`` excludes test cases that require a SIM and cellular service.
+  This currently excludes TC-048.
 
 The options may be combined. The aggregate ``success`` is true only when at
 least one test case executed and every executed test case passed. Skipped cases
-are listed separately and do not affect the aggregate. An inconclusive test
-whose automated checks pass follows the single-test result policy: it is
+are listed separately and do not affect the aggregate. Documented cases that
+have no CLI_H automation at all are always listed as skipped, with the same
+reason ``not fully implemented`` used for ``--implemented-only``. An
+inconclusive test whose automated checks pass follows the single-test result policy: it is
 reported as passed with ``need_further_verif`` set.
 
 Output
@@ -188,13 +199,21 @@ The main results are returned in the JSON file ``result.json`` with the followin
 content:
 
 * `success`: `true` if all test cases pass, `false` otherwise.
+* `executed_count`, `executed`: number and list of executed test cases.
+* `skipped_count`, `skipped_cases`: number and list of skipped test cases.
+* `passed_count`, `passed`: number and list of executed test cases that passed.
+* `failed_count`, `failed`: number and list of executed test cases that failed.
 * `individual_results`: array containing one object per executed test case
   with its number, result, and message.
 * `skipped`: array of test cases excluded by a selection option and the reason
-  they were skipped.
+  they were skipped, including every documented case without CLI_H
+  automation.
 
-The contents of ``result.json`` are printed to the terminal in a user-friendly
-way.
+Test case numbers are always integers in the JSON output.
+
+The terminal output has three sections separated by banners: the logs of each
+test case, the contents of ``result.json``, and a ``RESULTS SUMMARY`` with the
+number and list of executed, skipped, passed, and failed test cases.
 
 The results are organized within a new directory relative to where the command
 was run. This new directory is structured as follows:
@@ -275,11 +294,12 @@ The current HIL CLI exposes TC-001 through TC-013, TC-020, TC-042, TC-046, and
 TC-048. TC-005 and TC-007 only verify that sensor data can be read; physical
 signal accuracy and configured sensor behavior still require human
 verification. TC-011 is deliberately inconclusive until a cloud backend
-contract exists, and TC-013 therefore remains partial. TC-007 also requires
-the external environmental sensor to be connected; without it, environmental
-sampling has not been verified. TC-048 exercises the UTC synchronization path,
-but requires cellular service and a SIM to complete; without them it reports an
-inconclusive result and is classified as partially implemented. The remaining
+contract exists, and TC-013 therefore remains partial; partial cases count as
+not implemented. TC-007 is completely implemented but requires the external
+environmental sensor to be connected, and TC-048 is completely implemented but
+requires cellular service and a SIM to complete (without them it reports an
+inconclusive result). Use ``--no-env-sensor`` and ``--no-sim`` on benches
+lacking this hardware. The remaining
 documented cases are manual procedures or await implementation of their
 required interfaces. Run ``easncli cases`` for the current maintained coverage
 list.
@@ -307,12 +327,11 @@ leave both boards connected and powered throughout the suite.
 
 The current bench does not have the environmental sensor or a SIM. Therefore,
 do not treat TC-007 environmental sampling or TC-048 cellular UTC synchronization
-as completed verification. TC-007 is also excluded by ``--no-human``;
-TC-048 is excluded by ``--implemented-only``. Use
-``easncli tcfull --implemented-only --no-human`` to run only currently fully
-implemented cases that do not require human intervention. TC-048 may still be
-run separately to verify its pre-sync checks, but with no SIM or cellular
-service its final result is inconclusive.
+as completed verification. Use
+``easncli tcfull --implemented-only --no-human --no-env-sensor --no-sim`` to run
+only implemented cases that need none of these. TC-048 may still be run
+separately to verify its pre-sync checks, but with no SIM or cellular service
+its final result is inconclusive.
 
 REQ-023: Self-test Sequence
 ---------------------------
@@ -658,8 +677,9 @@ Expected results
 * The result is inconclusive only because the cloud backend check cannot yet
   be completed; a failure in any other check reports ``TCSTATUS_FAIL``.
 * ``easncli tcfull`` runs all cases exposed by CLI_H. Use
-  ``--implemented-only`` and ``--no-human`` to exclude partial or
-  human-intervention cases.
+  ``--implemented-only``, ``--no-human``, ``--no-env-sensor``, and
+  ``--no-sim`` to exclude cases by implementation status or bench
+  requirements.
 
 REQ-024: Power-On Log Payload Transmission
 ------------------------------------------
@@ -750,8 +770,8 @@ this is reflected in the returned CLI result / USB log.
 REQ-025: Reset Reason and History Update
 ----------------------------------------
 
-TC-016a: Reset reason is cleared and reset history is updated
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-057: Reset reason is cleared and reset history is updated
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""
@@ -979,8 +999,8 @@ The power-on log payload transmission is skipped, the
 failure is recorded as an attempted diagnostic-state action, and the device
 enters diagnostic state.
 
-TC-023a: Diagnostic state stops data acquisition
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-058: Diagnostic state stops data acquisition
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""
@@ -1005,8 +1025,8 @@ Data acquisition stops, durable and undelivered records
 are preserved, the diagnostic state survives the reset, and the FUOTA cycle
 starts if it was not already running.
 
-TC-023b: Diagnostic log payload contains required information
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-059: Diagnostic log payload contains required information
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""
@@ -1029,8 +1049,8 @@ The payload contains the power-on log information and
 identifies the diagnostic-state reason and affected ``record_id`` when
 applicable.
 
-TC-023c: Diagnostic-state indication is provided
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-060: Diagnostic-state indication is provided
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""
@@ -1081,8 +1101,8 @@ seconds.
 REQ-030: Data Acquisition Cycle Priority
 ----------------------------------------
 
-TC-025a: Data acquisition takes priority over conflicting actions
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-061: Data acquisition takes priority over conflicting actions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""
@@ -1377,8 +1397,8 @@ Expected results
 
 The record remains present in mass storage.
 
-TC-035a: Acquisition waits when storage cannot provide durable space
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-062: Acquisition waits when storage cannot provide durable space
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""
@@ -1403,8 +1423,8 @@ is available. Incomplete and undelivered records remain preserved.
 REQ-036: Run-time Mass Storage Access Failure
 ---------------------------------------------
 
-TC-035b: Runtime mass-storage access failure enters diagnostic state
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-063: Runtime mass-storage access failure enters diagnostic state
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""
@@ -1531,8 +1551,8 @@ The affected payload remains available for a subsequent
 attempt, and the retry count stops incrementing at
 ``PARAM_MAX_RETRY_COUNT``.
 
-TC-039a: Permanent transmission failure enters diagnostic state
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-064: Permanent transmission failure enters diagnostic state
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""
@@ -1557,8 +1577,8 @@ as a diagnostic-state action, and the node enters diagnostic state.
 REQ-038: Retry Count Reset
 --------------------------
 
-TC-039b: Successful payload transmission resets the retry count
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-065: Successful payload transmission resets the retry count
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""
@@ -1612,8 +1632,8 @@ between scheduled activities.
 REQ-040: Logging
 ----------------
 
-TC-040a: Operational and failure events are logged
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-066: Operational and failure events are logged
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""
@@ -1725,8 +1745,8 @@ EASNFW-CLOUD does not produce a cloud payload from an
 invalid or incomplete transfer, reports the precise error, and does not issue a
 successful link acknowledgement for the affected fragment or record.
 
-TC-044a: Lost link acknowledgement permits retransmission
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-067: Lost link acknowledgement permits retransmission
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Procedure
 """""""""
@@ -1871,8 +1891,8 @@ The latest available firmware versions are scheduled for update, and the
 update is performed only after the current recording cycle ends; the active
 recording is not interrupted.
 
-TC-049a: FUOTA can start from diagnostic state
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-068: FUOTA can start from diagnostic state
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""

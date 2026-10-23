@@ -1,92 +1,20 @@
 /**
  * @file    interfw_link_protocol.h
- * @brief   UART protocol for the Inter-FW link (IFL).
+ * @brief   Wire protocol and public API for the Inter-FW Link.
  *
- * ============================================================================
- *  OVERVIEW
- * ============================================================================
- *  Two firmware components on two different MCUs talk over one full-duplex
- *  UART. The link is symmetric: either side can send commands to the other.
- *  The command sets are different per direction:
+ * EASNFW-SENSOR and EASNFW-CLOUD use this protocol over a full-duplex UART.
+ * Common commands may be received by either component. SENSOR-range commands
+ * are sent by CLOUD to SENSOR, and CLOUD-range commands are sent by SENSOR to
+ * CLOUD. The command identifiers, payload structures, frame layout, status
+ * values, and shared helper functions below are the protocol source of truth.
  *
- *      CLOUD  --(SENSOR_CMD_xxx)-->  SENSOR    (commands exposed by SENSOR)
- *      SENSOR --(CLOUD_CMD_xxx)-->   CLOUD     (commands exposed by CLOUD)
+ * Each command frame is acknowledged. The acknowledgement reports frame
+ * acceptance or rejection; it does not by itself confirm durable cloud
+ * delivery. Long payloads use acknowledged fragments and stop-and-wait retry.
  *
- *  Every command frame MUST be answered by an ACK frame (reception
- *  acknowledgement + status). Commands may carry no payload, a small payload
- *  (single frame) or a large payload (split in fragments, each fragment
- *  individually acknowledged).
- *
- * ============================================================================
- *  PHYSICAL / FRAMING
- * ============================================================================
- *  UART default: 1,000,000 baud 8N1, with flow control (RTS/CTS). All
- *  multi-byte fields are LITTLE ENDIAN on the wire.
- *
- *   +------+------+--------+-----+-------+------+----------+-----------+------+
- *   | SOF  | TYPE | CMD_ID | SEQ | FLAGS | LEN  | PAYLOAD  |   CRC16   |
- *   | 1 B  | 1 B  |  1 B   | 1 B |  1 B  | 2 B  | 0..LEN B |    2 B    |
- *   +------+------+--------+-----+-------+------+----------+-----------+------+
- *   |<------------- header (7 bytes) ---------->|
- *
- *   - SOF     : start of frame, fixed 0xA5.
- *   - TYPE    : EASN_FRAME_CMD or EASN_FRAME_ACK.
- *   - CMD_ID  : command identifier (for ACK: the command being acknowledged).
- *   - SEQ     : sequence number chosen by the sender of a CMD; the ACK echoes
- *               it. Increments by 1 (mod 256) for every NEW CMD frame;
- *               retransmissions reuse the same SEQ. Used by sender to verify
-                 to which command an ACK belongs to. Used by receiver to detect
-                 duplicate commands.
- *   - FLAGS   : see EASN_FLAG_xxx.
- *   - LEN     : payload length in bytes (<= INTERFW_LINK_UART_MAX_PAYLOAD).
- *   - CRC16   : CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflection,
- *               xorout 0x0000) computed over TYPE..PAYLOAD (everything except
- *               SOF and the CRC itself).
- *
- *  Receiver behaviour: hunt for SOF, read header, reject if LEN is too large,
- *  read payload + CRC. On CRC failure or inter-byte timeout
- *  (INTERFW_LINK_UART_RX_INTERBYTE_TIMEOUT_MS) drop the frame, go back to SOF
- *  hunting. Corrupted CMD frames are NOT acked: the sender's ACK timeout
- *  triggers the retransmission.
- *
- * ============================================================================
- *  ACK / RETRANSMISSION (stop-and-wait)
- * ============================================================================
- *  - Only ONE CMD frame per direction may be outstanding (not yet acked).
- *  - If no ACK within INTERFW_LINK_UART_ACK_TIMEOUT_MS, the sender retransmits
- *    the frame (same SEQ) up to INTERFW_LINK_UART_MAX_RETRIES times, then
- *    reports EASN_ERR_TIMEOUT to the application.
- *  - The ACK payload carries a status code (ifl_status_t). The status says
- *    whether the command was accepted/executed or rejected (unknown command,
- *    busy, bad parameters, ...).
- *  - Duplicate detection: a receiver that gets a CMD with the same SEQ as the
- *    last one it accepted must re-send the ACK but NOT deliver the command to
- *    the application again (the original ACK was probably lost).
- *  - The ACK only means "received (and accepted/rejected)". Any command result
- *    that takes time is returned by the peer with its own command in the
- *    opposite direction (e.g. CLOUD_CMD_SAMPLE_REPORT).
- *
- * ============================================================================
- *  LARGE DATA (fragmentation)
- * ============================================================================
- *  Commands flagged as "data commands" can carry a payload bigger than one
- *  frame. The sender splits it in chunks of at most
- *  INTERFW_LINK_UART_MAX_FRAG_DATA bytes. Every chunk is a normal CMD frame
- *  with:
- *
- *      FLAGS.FRAGMENT = 1
- *      FLAGS.LAST     = 1 on the final chunk only
- *      PAYLOAD        = easn_frag_hdr_t + chunk bytes
- *
- *  Every chunk is acked individually (stop-and-wait). The receiver validates
- *  that offset == bytes received so far; otherwise it NACKs with
- *  EASN_ST_BAD_OFFSET and reports the offset it expects in the ACK so the
- *  sender can resume. A transfer is aborted with FLAGS.ABORT (sent in a
- *  fragment frame with zero chunk bytes) or when the receiver replies with any
- *  non-OK status.
- *
- *  Small data (<= INTERFW_LINK_UART_MAX_PAYLOAD) is simply sent as an ordinary
- *  CMD frame with no FRAGMENT flag.
+ * Multi-byte fields are little-endian. The physical UART defaults are
+ * 1,000,000 baud, 8-N-1, with RTS/CTS flow control. CRC-16/CCITT-FALSE covers
+ * TYPE through the payload, excluding SOF and the CRC bytes.
  */
 
 #ifndef EASNFW_INTERFW_LINK_UART_H
@@ -105,27 +33,33 @@ extern "C" {
 /* ========================================================================== */
 
 #ifndef INTERFW_LINK_UART_BAUDRATE
+/** @brief Default UART baud rate: 1000000 bits per second. */
 #define INTERFW_LINK_UART_BAUDRATE              1000000u
 #endif
 
 #ifndef INTERFW_LINK_UART_FLOW_CTRL
+/** @brief Enables RTS/CTS hardware flow control; 1 means enabled. */
 #define INTERFW_LINK_UART_FLOW_CTRL             1u
 #endif
 
 /* Max payload bytes inside one frame (command args or fragment hdr + data). */
 #ifndef INTERFW_LINK_UART_MAX_PAYLOAD
+/** @brief Maximum payload size: 2048 bytes per frame. */
 #define INTERFW_LINK_UART_MAX_PAYLOAD           2048u
 #endif
 
 #ifndef INTERFW_LINK_UART_ACK_TIMEOUT_MS
+/** @brief Default wait for a matching ACK: 200 milliseconds. */
 #define INTERFW_LINK_UART_ACK_TIMEOUT_MS        200u
 #endif
 
 #ifndef INTERFW_LINK_UART_MAX_RETRIES
+/** @brief Default retries after the first transmission: 3. */
 #define INTERFW_LINK_UART_MAX_RETRIES           3u
 #endif
 
 #ifndef INTERFW_LINK_UART_RX_INTERBYTE_TIMEOUT_MS
+/** @brief Inter-byte receive timeout: 50 milliseconds. */
 #define INTERFW_LINK_UART_RX_INTERBYTE_TIMEOUT_MS 50u
 #endif
 
@@ -133,34 +67,41 @@ extern "C" {
 /*  Wire format constants                                                     */
 /* ========================================================================== */
 
+/** @brief Start-of-frame marker: 0xA5. */
 #define INTERFW_LINK_UART_SOF                   0xA5u
-#define INTERFW_LINK_UART_HDR_SIZE              7u      /* SOF..LEN */
+/** @brief Header size through LEN: 7 bytes. */
+#define INTERFW_LINK_UART_HDR_SIZE              7u
+/** @brief CRC trailer size: 2 bytes. */
 #define INTERFW_LINK_UART_CRC_SIZE              2u
 #define INTERFW_LINK_UART_MAX_FRAME_SIZE \
     (INTERFW_LINK_UART_HDR_SIZE + INTERFW_LINK_UART_MAX_PAYLOAD + INTERFW_LINK_UART_CRC_SIZE)
 
+/** @brief CRC-16/CCITT-FALSE covers TYPE through PAYLOAD (excluding SOF and CRC): init 0xFFFF, polynomial 0x1021, no reflection, xorout 0. */
 #define INTERFW_LINK_UART_CRC_INIT              0xFFFFu
 
-/** Frame types. */
+/** Distinguishes a command request from its acknowledgement frame. */
 typedef enum {
-    EASN_FRAME_CMD = 0x01,  /**< Command (request) frame                     */
-    EASN_FRAME_ACK = 0x02   /**< Acknowledgement of a CMD frame              */
+    EASN_FRAME_CMD = 0x01,  /**< Command request (0x01). */
+    EASN_FRAME_ACK = 0x02   /**< Acknowledgement of a command request (0x02). */
 } easn_frame_type_t;
 
-/** FLAGS bit field. */
-#define EASN_FLAG_FRAGMENT      (1u << 0) /**< Payload starts with easn_frag_hdr_t */
-#define EASN_FLAG_LAST          (1u << 1) /**< Final fragment of a transfer        */
-#define EASN_FLAG_ABORT         (1u << 2) /**< Abort the ongoing transfer          */
-#define EASN_FLAG_RETRANSMIT    (1u << 3) /**< Informative: frame is a retry       */
-/* bits 4..7 reserved, must be 0 on TX and ignored on RX */
+/** @name IFL command-frame flags
+ *  Bits 4 through 7 are reserved; transmitters set them to zero.
+ *  @{
+ */
+#define EASN_FLAG_FRAGMENT      (1u << 0) /**< Payload starts with easn_frag_hdr_t (0x01). */
+#define EASN_FLAG_LAST          (1u << 1) /**< This is the final fragment (0x02). */
+#define EASN_FLAG_ABORT         (1u << 2) /**< Abort the active fragmented transfer (0x04). */
+#define EASN_FLAG_RETRANSMIT    (1u << 3) /**< Marks a retransmitted command frame (0x08). */
+/** @} */
 
 /* ========================================================================== */
 /*  Roles                                                                     */
 /* ========================================================================== */
 
 typedef enum {
-    EASN_ROLE_SENSOR = 0,   /**< This MCU runs EASNFW-SENSOR */
-    EASN_ROLE_CLOUD  = 1    /**< This MCU runs EASNFW-CLOUD  */
+    EASN_ROLE_SENSOR = 0,   /**< This endpoint runs EASNFW-SENSOR (0). */
+    EASN_ROLE_CLOUD  = 1    /**< This endpoint runs EASNFW-CLOUD (1). */
 } easn_role_t;
 
 /**
@@ -202,22 +143,22 @@ struct ifl_runtime_state {
 
 
 enum ifl_commands {
-	/** Commands implemented by both firmware components. */
+	/** Commands that may be received by either firmware component. */
 	IFL_CMD_COMMON__RANGE_START        = 0x01, /**< Not a command, just helper to check commands ranges */
-	IFL_CMD_COMMON__PING               = 0x01, /**< Link liveness check. */
+	IFL_CMD_COMMON__PING               = 0x01, /**< Empty link-liveness check (0x01). */
 	IFL_CMD_COMMON__RANGE_END          = 0x0F, /**< Not a command, just helper to check commands ranges */
 
-	/** Commands EXPOSED BY EASNFW-SENSOR (CLOUD -> SENSOR). */
+	/** Commands received by SENSOR and sent by CLOUD. */
 	IFL_CMD_SENSOR__RANGE_START  = 0x10, /**<  Not a command, just helper to check commands ranges */
-	IFL_CMD_SENSOR__CLOUD_READY  = 0x10, /**< EASNFW-CLOUD ready after reset. */
-	IFL_CMD_SENSOR__UTC_TIME     = 0x11, /**< UTC time and CLOUD reset reason. */
+	IFL_CMD_SENSOR__CLOUD_READY  = 0x10, /**< CLOUD startup announcement (0x10); payload is ifl_cmd_payload_cloud_ready_t. */
+	IFL_CMD_SENSOR__UTC_TIME     = 0x11, /**< UTC and reset-cause payload (0x11) is ifl_cmd_payload_utc_time_t. */
 	IFL_CMD_SENSOR__RANGE_END    = 0x7F, /**<  Not a command, just helper to check commands ranges. */
 
-	/** Commands EXPOSED BY EASNFW-CLOUD (SENSOR -> CLOUD). */
+	/** Commands received by CLOUD and sent by SENSOR. */
 	IFL_CMD_CLOUD__RANGE_START   = 0x80, /**<  Not a command, just helper to check commands ranges */
-	IFL_CMD_CLOUD__RESET         = 0x80, /**< RESET EASNFW-CLOUD. */
-	IFL_CMD_CLOUD__RECORD_DATA   = 0x81, /**< Transfer record data to CLOUD. */
-	IFL_CMD_CLOUD__TIME_SYNC_REQUEST = 0x82, /**< Request current cellular UTC. */
+	IFL_CMD_CLOUD__RESET         = 0x80, /**< Empty reset request (0x80); CLOUD resets after acknowledging. */
+	IFL_CMD_CLOUD__RECORD_DATA   = 0x81, /**< Transfer record bytes (0x81); large payloads use easn_frag_hdr_t. */
+	IFL_CMD_CLOUD__TIME_SYNC_REQUEST = 0x82, /**< Empty asynchronous cellular UTC request (0x82). */
 	IFL_CMD_CLOUD__RANGE_END     = 0xEF, /**<  Not a command, just helper to check commands ranges */
 };
 
@@ -225,19 +166,18 @@ enum ifl_commands {
 /*  ACK status codes                                                          */
 /* ========================================================================== */
 
-/* some of the following statuses are placeholders, not all of them will be used
-   necessarily and other ones may need to be added */
+/** Status returned by the receiver in an acknowledgement frame. */
 typedef enum {
-    IFL_STAT__OK              = 0x00, /**< Received and accepted                    */
-    IFL_STAT__UNKNOWN_CMD     = 0x01, /**< Command ID not exposed by this firmware  */
-    IFL_STAT__BAD_LEN         = 0x02, /**< Payload length invalid for this command  */
-    IFL_STAT__BAD_PARAM       = 0x03, /**< Payload content invalid                  */
-    IFL_STAT__BUSY            = 0x04, /**< Cannot handle now, sender may retry later */
-    IFL_STAT__NOT_SUPPORTED   = 0x05, /**< Known command but not available right now */
-    IFL_STAT__BAD_OFFSET      = 0x06, /**< Fragment offset != expected (see next_offset) */
-    IFL_STAT__NO_MEMORY       = 0x07, /**< Cannot store the incoming data           */
-    IFL_STAT__TRANSFER_ERR    = 0x08, /**< Transfer-level failure (bad total size, id mismatch, CRC of whole image...) */
-    IFL_STAT__INTERNAL_ERR    = 0xFF  /**< Unspecified error in the receiver        */
+    IFL_STAT__OK              = 0x00, /**< Received and accepted (0x00). */
+    IFL_STAT__UNKNOWN_CMD     = 0x01, /**< Command not exposed by this firmware (0x01). */
+    IFL_STAT__BAD_LEN         = 0x02, /**< Invalid command payload length (0x02). */
+    IFL_STAT__BAD_PARAM       = 0x03, /**< Invalid command payload content (0x03). */
+    IFL_STAT__BUSY            = 0x04, /**< Temporarily unavailable; sender may retry (0x04). */
+    IFL_STAT__NOT_SUPPORTED   = 0x05, /**< Known command not available now (0x05). */
+    IFL_STAT__BAD_OFFSET      = 0x06, /**< Fragment offset differs from expected offset (0x06). */
+    IFL_STAT__NO_MEMORY       = 0x07, /**< Receiver cannot store incoming data (0x07). */
+    IFL_STAT__TRANSFER_ERR    = 0x08, /**< Transfer validation or assembly failed (0x08). */
+    IFL_STAT__INTERNAL_ERR    = 0xFF  /**< Unspecified receiver error (0xFF). */
 } ifl_status_t;
 
 /* ========================================================================== */
@@ -256,7 +196,14 @@ typedef enum {
 #  pragma pack(push, 1)
 #endif
 
-/** Frame header as it appears on the wire. */
+/**
+ * @brief Fixed frame header serialized before the payload.
+ *
+ * Multi-byte members are little-endian on the wire. The trailing CRC is not
+ * part of this structure. Fields appear in wire order: one-byte SOF marker,
+ * one-byte frame type, one-byte command identifier, one-byte sequence number,
+ * one-byte flags, and a two-byte payload length (seven bytes total).
+ */
 typedef struct IFL_PACKED {
     uint8_t  sof;        /**< INTERFW_LINK_UART_SOF               */
     uint8_t  type;       /**< easn_frame_type_t                   */
@@ -266,7 +213,14 @@ typedef struct IFL_PACKED {
     uint16_t len;        /**< Payload length                      */
 } easn_frame_hdr_t;
 
-/** Payload of an ACK frame. */
+/**
+ * @brief Fixed payload returned in an ACK frame.
+ *
+ * @p next_offset is used by fragmented transfers to report the next expected
+ * byte offset; it is zero for non-fragmented commands. The payload contains
+ * one status byte, one reserved byte set to zero, and a four-byte offset, for
+ * six bytes total.
+ */
 typedef struct IFL_PACKED {
     uint8_t  status;       /**< ifl_status_t                                    */
     uint8_t  reserved;     /**< 0                                                */
@@ -275,7 +229,15 @@ typedef struct IFL_PACKED {
                                 resume point on EASN_ST_BAD_OFFSET). 0 otherwise. */
 } easn_ack_payload_t;
 
-/** Prefix of the payload in frames with EASN_FLAG_FRAGMENT. */
+/**
+ * @brief Prefix of a fragmented command payload.
+ *
+ * The remaining payload bytes are this fragment's data. The sender keeps
+ * @p transfer_id and @p total_len constant across the transfer and sets
+ * @p offset to the byte position of each fragment. The transfer ID is one
+ * byte and the total length and offset are 32-bit little-endian values, for a
+ * nine-byte prefix.
+ */
 typedef struct IFL_PACKED {
     uint8_t  transfer_id;  /**< Identifies the transfer; constant for all of its fragments */
     uint32_t total_len;    /**< Total size in bytes of the whole data blob */
@@ -287,15 +249,23 @@ typedef struct IFL_PACKED {
 #define INTERFW_LINK_UART_MAX_FRAG_DATA \
     (INTERFW_LINK_UART_MAX_PAYLOAD - sizeof(easn_frag_hdr_t))
 
-/* ---- Example command payloads ------------------------------------------- */
-
+/**
+ * @brief Three-byte semantic version sent in ``CLOUD_READY``.
+ *
+ * Members are serialized as major, minor, and patch version bytes.
+ */
 typedef struct IFL_PACKED {
     uint8_t  fw_major;
     uint8_t  fw_minor;
     uint8_t  fw_patch;
 } ifl_cmd_payload_cloud_ready_t;
 
-/** UTC Unix epoch milliseconds and the CLOUD processor's reset-cause bits. */
+/**
+ * @brief UTC Unix epoch milliseconds and CLOUD reset-cause bits.
+ *
+ * The payload is 12 bytes: 64-bit Unix epoch milliseconds followed by
+ * 32-bit reset-cause bits, both little-endian.
+ */
 typedef struct IFL_PACKED {
     uint64_t unix_time_ms;
     uint32_t cloud_reset_cause;
@@ -338,7 +308,12 @@ _Static_assert(INTERFW_LINK_UART_MAX_PAYLOAD > sizeof(easn_frag_hdr_t),
 #define EASN_CMDF_DATA          (1u << 0) /**< May use fragmentation (large payload)   */
 #define EASN_CMDF_NO_PAYLOAD    (1u << 1) /**< Payload must be empty                   */
 
-/** Description of a command accepted by an IFL endpoint. */
+/**
+ * @brief Description of a command accepted by an IFL endpoint.
+ *
+ * @p cmd_id identifies the command, @p flags contains EASN_CMDF_* validation
+ * properties, and @p payload_len gives the required payload length.
+ */
 typedef struct {
     /** Command identifier. */
     uint8_t cmd_id;
@@ -361,7 +336,7 @@ static inline bool ifl__is_cmd_valid(easn_role_t receiver, uint8_t cmd_id)
 }
 
 /* ========================================================================== */
-/*  APÌ                                                                       */
+/*  API                                                                       */
 /* ========================================================================== */
 
 /**
@@ -372,7 +347,12 @@ static inline bool ifl__is_cmd_valid(easn_role_t receiver, uint8_t cmd_id)
 bool ifl__is_init(void);
 
 /**
- * @brief Initialize Inter-FW Link.
+ * @brief Initialize the protocol state for an Inter-FW Link endpoint.
+ *
+ * The platform UART must be initialized separately before sending or
+ * receiving frames.
+ *
+ * @return 0 on success, or a negative EASNFW status code on failure.
  */
 int ifl__init(void);
 

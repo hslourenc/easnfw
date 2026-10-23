@@ -5,11 +5,11 @@
 #include <stdbool.h>
 
 /**
- * Commands accepted by EASNFW-SENSOR.
+ * Commands accepted by EASNFW-SENSOR's IFL endpoint.
  *
- * The table includes common commands and commands exposed by SENSOR to
- * EASNFW-CLOUD. Commands in the CLOUD range are transmitted by SENSOR and
- * therefore are not entries in this receive table.
+ * The table includes common commands and SENSOR-range commands sent by
+ * EASNFW-CLOUD. CLOUD-range commands are sent by SENSOR and therefore are not
+ * entries in this receive table.
  */
 static const easn_ifl_command_entry_t easnfw_sensor_ifl_command_table[] = {
 	{
@@ -39,9 +39,10 @@ static const easn_ifl_command_entry_t easnfw_sensor_ifl_command_table[] = {
 #define EASNFW_SENSOR_IFL_RX_MSGQ_SIZE 8u
 
 /**
- * @brief Send the RESET_EASNFWCLOUD command to EASNFW-CLOUD.
+ * @brief Request that EASNFW-CLOUD reset.
  *
- * @return 0 on success, error code from enum easnfw_status on failure.
+ * @return 0 when the reset request is acknowledged, otherwise a negative
+ * EASNFW status code.
  */
 int ifl__reset_easnfwcloud_tx(void);
 
@@ -62,9 +63,10 @@ void ifl__verification_ping_override_set(bool enabled);
 /**
  * @brief Handler for the EASNFWCLOUD_READY command from EASNFW-CLOUD.
  *
- * Acknowledge command and set a global flag indicating 
+ * The handler acknowledges the command, records the CLOUD-ready state, and
+ * wakes any waiting reset coordination.
  *
- * @return 0 on success, error code from enum easnfw_status on failure.
+ * @return 0 on success, otherwise a negative EASNFW status code.
  */
 int ifl__easnfwcloud_ready_rx(void);
 

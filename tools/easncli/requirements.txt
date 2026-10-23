@@ -1,0 +1,2 @@
+-e git+ssh://git@github.com/hslourenc/easnfw.git@b3acb5535e49ae0461c5103eb93c57eb56598c9e#egg=easncli&subdirectory=tools/easncli
+pyserial==3.5

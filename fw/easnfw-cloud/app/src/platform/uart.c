@@ -38,6 +38,11 @@ static void uart_callback(const struct device *dev, struct uart_event *event,
 	if (event->type == UART_RX_RDY && rx_handler != NULL) {
 		rx_handler(&event->data.rx.buf[event->data.rx.offset],
 			   event->data.rx.len);
+	} else if (event->type == UART_RX_DISABLED && rx_handler != NULL) {
+		/* A line error (e.g. peer reset glitch) disables RX; restart it. */
+		current_rx_buffer = rx_buffer_a;
+		(void)uart_rx_enable(dev, current_rx_buffer, sizeof(rx_buffer_a),
+				     50000u);
 	} else if (event->type == UART_RX_BUF_REQUEST) {
 		uint8_t *next = current_rx_buffer == rx_buffer_a ?
 			rx_buffer_b : rx_buffer_a;

@@ -1,3 +1,10 @@
+/**
+ * @file pipeline.h
+ * @brief Bounded message types and ownership helpers for the SENSOR pipeline.
+ *
+ * Pipeline messages come from a fixed pool; producers must handle allocation
+ * failure rather than waiting for unbounded memory.
+ */
 #ifndef EASNFW_PIPELINE_H
 #define EASNFW_PIPELINE_H
 

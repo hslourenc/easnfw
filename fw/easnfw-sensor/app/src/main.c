@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/printk.h>
 #ifdef CONFIG_BOOTLOADER_MCUBOOT
 #include <zephyr/dfu/mcuboot.h>
 #endif
@@ -24,7 +25,10 @@ LOG_MODULE_REGISTER(easnfw_sensor, LOG_LEVEL_INF);
 
 int main(void)
 {
+	LOG_INF("EASNFW-SENSOR application code under execution");
+
 #ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	LOG_INF("CLI_H starting");
 	cli__wait_for_shell_ready();
 #else
 	int err;
