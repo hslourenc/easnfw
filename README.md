@@ -184,7 +184,7 @@ python -m pip install -e tools/easncli
 easncli tc 1
 ```
 
-CLI_C currently exposes TC-001 through TC-013, TC-020, TC-042, TC-046, and
+CLI_C currently exposes TC-001 through TC-013, TC-020, TC-042, TC-043, TC-046, and
 TC-048. Use the following primary commands to run suites or inspect coverage:
 
 ```sh

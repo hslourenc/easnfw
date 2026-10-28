@@ -30,6 +30,7 @@ void app_test_cases__tc011(unsigned int test_case_step);
 void app_test_cases__tc012(unsigned int test_case_step);
 void app_test_cases__tc013(unsigned int test_case_step);
 void app_test_cases__tc042(unsigned int test_case_step);
+void app_test_cases__tc043(unsigned int test_case_step);
 void app_test_cases__tc046(unsigned int test_case_step);
 void app_test_cases__tc048(unsigned int test_case_step);
 void app_test_cases__tc020(unsigned int test_case_step);

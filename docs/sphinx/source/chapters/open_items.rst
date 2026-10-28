@@ -3,12 +3,19 @@ Open Items and Closure
 ***********************
 
 This chapter is the single authoritative register of unresolved project
-decisions, implementation gaps, and validation work. Other chapters describe
+decisions and validation work that affect the firmware. Other chapters describe
 current behavior and link here when a caveat affects that behavior. A
 corresponding ``EASNFW_REVISIT`` source comment points to this register.
 
-Firmware and Backend Contracts
-==============================
+Hardware, procurement, and environmental qualification work that does not
+change the firmware (microphone and SD-card qualification, board revisions,
+cellular drift, energy source and limits) is intentionally not tracked here.
+
+Firmware Implementation
+=======================
+
+These items block or will change firmware code and the test cases that verify
+it.
 
 Cloud ingestion and delivery
 ----------------------------
@@ -21,26 +28,33 @@ until the backend contract is agreed. Define and implement:
 * device authentication, TLS trust-anchor provisioning, and certificate
   lifecycle;
 * idempotency using a stable record identifier and whole-record integrity;
-* retryable versus permanent response classification;
+* retryable versus permanent response classification, and from it the SENSOR
+  retry policy for failed record transfers;
 * the durable-commit boundary that permits SENSOR to mark or remove a record;
 * the laboratory ingress approach, including public-IP/NAT/firewall and
-  institutional security constraints; and
+  institutional security constraints;
 * retention periods for raw audio, derived artifacts, and delivered on-node
-  records.
+  records; and
+* how a full-length record reaches the backend. A 60 s, 48 kHz mono PCM16 track
+  is about 5.76 MB, but EASNFW-CLOUD stages a whole record in RAM, limited by
+  ``CONFIG_EASNFW_CLOUD_MAX_RECORD_SIZE`` (at most 64 KiB), so it rejects such a
+  record. The IFL transfer itself already streams in bounded fragments; the
+  cloud side needs chunked or streamed upload once the contract is known.
 
 Until then, neither IFL frame receipt nor local HTTP acceptance is proof of
 durable cloud delivery. The CLOUD code must not issue a successful durable
-acknowledgement. The backend chapter (:doc:`cloud_backend`) records the
+acknowledgement, and SENSOR keeps every record on the SD card after a
+successful IFL transfer. The backend chapter (:doc:`cloud_backend`) records the
 deployment context and candidate approaches.
 
-Inter-firmware record transfer
-------------------------------
+Durable acknowledgement of record transfer
+------------------------------------------
 
-The IFL framing and CLOUD-side fragment receiver exist, but SENSOR does not yet
-stream committed record files through the link and there is no end-to-end
-durable-cloud acknowledgement that SENSOR can use. Agree record identity,
-versioning, checksums, resume behavior, duplicate handling, and acknowledgement
-semantics before completing the transfer path.
+SENSOR streams committed records over the IFL (see :doc:`interfw_link`), and
+CLOUD verifies and de-duplicates them. What remains open is the end-to-end
+durable-cloud acknowledgement that lets SENSOR mark a record delivered
+(REQ-034), which depends on the cloud contract above. TC-044, TC-045 and
+TC-067 stay not fully implemented for that reason.
 
 Audio processing
 ----------------
@@ -49,42 +63,34 @@ The current algorithm is a bit-exact PCM pass-through. The scientific
 processing algorithm, algorithm version policy, and any changes to sample or
 block requirements remain open.
 
-Hardware and Time Validation
-============================
+Firmware update
+---------------
 
-Sensors and mass storage
-------------------------
+Firmware download, update authorization, version discovery, update transport,
+and coordinated SENSOR/CLOUD rollout are unimplemented and depend on the cloud
+platform. Confirmation and rollback criteria are defined (see
+:doc:`design`), but the signature-rejection test cases TC-053 and TC-054 need
+an update transport and remain not fully implemented.
 
-The DMM-4026-B-I2S-R and its P10 signal routing are the current microphone
-baseline, but production-level signal, clock, environmental, and temperature
-validation remains outstanding. The external BME688-compatible sensor address
-``0x76`` is provisional; confirm its wiring, address, and whether raw gas
-resistance is sufficient for the VOC requirement. Select and qualify the SD
-card and production board revisions.
+Production key custody and trust anchors
+----------------------------------------
 
-Storage durability
-------------------
+Production signing-key custody and the matching bootloader trust anchors must
+be established. The SDK development key must never be used for deployment.
 
-Records remain PC-readable FAT files. Header/PCM/footer checksums, synchronization,
-and boot-time validation detect many incomplete or corrupt records, but neither
-FAT metadata updates nor SD-card flash translation are guaranteed atomic on
-power loss. TC-042 validates quarantine of a truncated temporary file; it does
-not prove power-cut durability. Exercise abrupt power removal, card-specific
-failure behavior, filesystem repair, and recovery on the target hardware.
+External environmental sensor
+-----------------------------
 
-Timekeeping
------------
+The BME688-compatible sensor address ``0x76`` is provisional. Confirm the
+wiring and the address on the production hardware. Gas resistance in ohms, as
+reported by the sensor driver, is the VOC quantity the firmware records; no
+index derivation is required.
 
-UTC is provided by the nRF9151 modem's cellular network-time service, passed to
-SENSOR over IFL, and advanced locally using monotonic uptime. Validate cellular
-availability, provisioning, accuracy, and drift over the intended operating
-environment. A reboot requires synchronization again; no independent
-persistent RTC source is implemented. TC-048 checks the request, initial
-unsynchronized state, and formatting, but it does not simulate an actual
-network outage followed by restoration through the production startup loop.
+Firmware Validation
+===================
 
-Runtime and Fault Handling
-==========================
+These items do not change the firmware design but must be measured on target
+hardware before the corresponding claims are made.
 
 Real-time and memory behavior
 -----------------------------
@@ -95,33 +101,21 @@ exhaustion and reuse deterministically. Measure I2S timing, queue wait,
 processing/storage latency, peak memory, and track-abort behavior under
 representative SD-card load before claiming the real-time budget is met.
 
-Failure classification and resets
-----------------------------------
+Closed items
+============
 
-Reset causes, a five-entry reset history, recovery bookkeeping, diagnostic
-reason persistence, and indication are implemented. No automatic recovery
-reset is currently initiated because no reset-recoverable fault class has been
-approved. Define which faults permit a retry/reset, diagnostic-state behavior,
-and recovery criteria before implementing an automatic reset policy. Existing
-manual test procedures for recovery bookkeeping still require target validation.
+For reference, the following decisions are made and implemented:
 
-Firmware Update
-===============
+* **Recovery resets.** Reset causes, a five-entry reset history, and recovery
+  bookkeeping are kept, but no fault class is recoverable by reset. The
+  firmware never starts an automatic recovery reset, and TC-055 and TC-056
+  stay non-applicable until the requirements define such a fault.
+* **Time outage handling.** UTC is requested repeatedly at startup until
+  received, without entering diagnostic state (TC-048). A reboot requires
+  synchronization again; there is no independent RTC.
+* **Image confirmation.** See :doc:`design`.
+* **Record streaming.** See :doc:`interfw_link`; verified by TC-043.
 
-MCUboot and signed-image rollback provide only a boot foundation. Production
-key custody and matching bootloader trust anchors must be established; never
-use the SDK development key for deployment. Firmware download, update
-authorization, version discovery, update transport, coordinated SENSOR/CLOUD
-rollout, confirmation criteria, and rollback after a real update failure remain
-unimplemented or unvalidated on hardware.
-
-Power and Verification
-======================
-
-The final energy source, charging/power-path design, and acceptable
-energy-per-track/transmission limits require hardware measurements and a
-production decision. The verification chapter contains the current procedures;
-CLI_C's ``easncli cases`` output in :doc:`verification` is the maintained list
-of test cases that are not completely implemented. Automated HIL coverage does
-not replace the hardware, power-cut, field-sensor, radio, or backend validation
-listed above.
+The verification chapter contains the current procedures; CLI_C's
+``easncli cases`` output in :doc:`verification` is the maintained list of test
+cases that are not completely implemented.

@@ -54,6 +54,9 @@ K_THREAD_STACK_DEFINE(recovery_timer_stack, 1024U);
 static const struct gpio_dt_spec diagnostic_led =
 	GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 
+/** Time allowing the last IFL ACK to leave the UART before rebooting. */
+#define RESET_ACK_FLUSH_MS 20
+
 /* Set when EASNFW-CLOUD has completed the requested reset. */
 static bool easnfwcloud_ready;
 static struct k_sem easnfwcloud_ready_sem;
@@ -275,6 +278,8 @@ int reset__easnfw_reset(bool const force)
 	}
 
 	LOG_INF("EASNFW-CLOUD reset complete; resetting EASNFW-SENSOR");
+	/* Let the asynchronous CLOUD_READY ACK finish transmitting. */
+	k_sleep(K_MSEC(RESET_ACK_FLUSH_MS));
 	sys_reboot(SYS_REBOOT_COLD);
 	return -EASNFW_STATUS__INTERFW_LINK_NOT_IMPLEMENTED;
 }

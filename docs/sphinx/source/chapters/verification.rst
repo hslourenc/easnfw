@@ -168,7 +168,7 @@ Description
 ^^^^^^^^^^^
 
 Executes all test cases currently exposed by CLI_H: TC-001 through TC-013,
-TC-020, TC-042, TC-046, and TC-048.
+TC-020, TC-042, TC-043, TC-046, and TC-048.
 
 Options
 ^^^^^^^
@@ -290,7 +290,7 @@ out of reset, but instead exposes a command line interface (CLI) over USB that
 triggers specific code paths on demand, each test case below assumes it is
 driven by a host PC issuing CLI commands to EASNFW-SENSOR.
 
-The current HIL CLI exposes TC-001 through TC-013, TC-020, TC-042, TC-046, and
+The current HIL CLI exposes TC-001 through TC-013, TC-020, TC-042, TC-043, TC-046, and
 TC-048. TC-005 and TC-007 only verify that sensor data can be read; physical
 signal accuracy and configured sensor behavior still require human
 verification. TC-011 is deliberately inconclusive until a cloud backend
@@ -1715,6 +1715,17 @@ Inter-component Transfer Integrity
 TC-043: Multi-frame record is reassembled correctly
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+CLI_H coverage
+""""""""""""""
+
+``easncli tc 43`` commits a synthetic record of 4000 PCM16 samples (about four
+fragments) to the SD card and streams it with ``cloud_link__record_send()``.
+EASNFW-CLOUD accepts the transfer only after every fragment is in sequence, the
+CRC-32 trailer over the whole record file matches, and ``record_id`` is
+readable at its fixed offset, so a successful final acknowledgement proves the
+reassembled bytes equal the committed file. The case needs EASNFW-CLOUD but
+no SIM or cloud backend.
+
 Procedure
 """""""""
 
@@ -1839,15 +1850,20 @@ TC-048: Acquisition waits until UTC synchronization succeeds
 CLI_H coverage
 """"""""""""""
 
-``easncli tc 48`` verifies that UTC access returns ``-ENODATA`` before initial
-synchronization, requests time from EASNFW-CLOUD, and checks that the returned
-time advances monotonically and formats as ISO-8601 UTC. If cellular time
-cannot be obtained, the case is inconclusive rather than a failure.
+``easncli tc 48`` simulates a network outage: it invalidates the UTC anchor and
+makes SENSOR ignore UTC responses from EASNFW-CLOUD for five seconds. It then
+runs the same ``app_utc_time__acquire()`` loop used at production startup and
+verifies that UTC was inaccessible (``-ENODATA``) during the outage, that
+acquisition kept retrying (at least two requests) and ended only after the
+outage, and that the restored time advances monotonically and formats as
+ISO-8601 UTC. If cellular time cannot be obtained at all, the case is
+inconclusive rather than a failure. Production startup calls the same function
+before ``sampling_start()``, so no record is acquired while it is blocked.
 
 Procedure
 """""""""
 
-For the full startup-gating check, boot the production image without cellular
+For an end-to-end check, boot the production image without cellular
 time, verify that no record is acquired or committed, restore the network, and
 confirm acquisition starts only after synchronization.
 
@@ -1952,6 +1968,14 @@ of both components and reports those versions in the next power-on log.
 
 REQ-022: FUOTA Rollback
 ------------------------------
+
+.. note::
+
+   Confirmation criteria (cloud-independent): MCUboot only boots a signed
+   image. EASNFW-SENSOR confirms its image after its self-test sequence
+   (including the IFL handshake) passes, and EASNFW-CLOUD after its local
+   self-test and IFL initialization. An image that is not confirmed is reverted
+   at the next reset. See :doc:`design`.
 
 TC-053: Unsigned firmware image triggers rollback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -51,4 +51,31 @@ int app_utc_time__format(int64_t unix_time_ms, char *buffer,
 /** @brief Wait for the initial UTC synchronization event. */
 int app_utc_time__wait(k_timeout_t timeout);
 
+/**
+ * @brief Request UTC from EASNFW-CLOUD until it has been synchronized.
+ *
+ * Acquisition is blocked while this runs; failure to obtain time never
+ * enters diagnostic state.
+ *
+ * @param request_timeout Time to wait for a response after each request.
+ * @param retry_seconds Delay before the next request after a timeout.
+ * @param deadline Overall limit; K_FOREVER for the production startup.
+ * @param attempts Optional; receives the number of requests issued.
+ * @return 0 once synchronized, -ETIMEDOUT when the deadline expires.
+ */
+int app_utc_time__acquire(k_timeout_t request_timeout, uint32_t retry_seconds,
+			  k_timeout_t deadline, uint32_t *attempts);
+
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+/**
+ * @brief Simulate a network outage (TC-048).
+ *
+ * Invalidates the UTC anchor and ignores UTC updates from EASNFW-CLOUD for
+ * the given duration.
+ *
+ * @param duration_ms Outage duration in milliseconds.
+ */
+void app_utc_time__verification_outage_start(uint32_t duration_ms);
+#endif
+
 #endif

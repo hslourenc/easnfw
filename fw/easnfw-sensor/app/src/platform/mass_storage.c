@@ -12,6 +12,7 @@
 
 #include <easnfw/mass_storage.h>
 #include <easnfw/nvs.h>
+#include "../../../../shared/interfw_link_protocol.h"
 
 LOG_MODULE_REGISTER(mass_storage, LOG_LEVEL_INF);
 
@@ -46,6 +47,11 @@ struct record_file_header {
 	struct app_mass_storage_record_metadata metadata;
 	uint32_t header_crc;
 };
+
+/* EASNFW-CLOUD identifies records from the shared blob offset. */
+BUILD_ASSERT(offsetof(struct record_file_header, metadata.record_id) ==
+		     EASN_RECORD_ID_OFFSET,
+	     "record_id offset must match the IFL record blob layout");
 
 struct record_file_footer {
 	uint32_t magic;
@@ -564,4 +570,67 @@ int app_mass_storage__record_abort(void)
 			active_record_temporary_path);
 	}
 	return err;
+}
+
+static struct fs_file_t reader_file;
+static bool reader_open;
+
+/** Open a committed record for transmission and report its size in bytes. */
+int app_mass_storage__record_read_open(const uint8_t record_id[16],
+				       uint32_t *size)
+{
+	char path[RECORD_PATH_SIZE];
+	struct fs_dirent entry;
+	int err;
+
+	if (!mass_storage_initialized || record_id == NULL || size == NULL ||
+	    reader_open) {
+		return -EINVAL;
+	}
+	snprintk(path, sizeof(path), RECORD_DIRECTORY "/");
+	for (size_t i = 0U; i < 16U; ++i) {
+		size_t const used = strlen(path);
+
+		snprintk(&path[used], sizeof(path) - used, "%02x", record_id[i]);
+	}
+	strncat(path, ".rec", sizeof(path) - strlen(path) - 1U);
+	err = fs_stat(path, &entry);
+	if (err != 0) {
+		return err;
+	}
+	if (entry.type != FS_DIR_ENTRY_FILE || entry.size > UINT32_MAX) {
+		return -EBADF;
+	}
+	fs_file_t_init(&reader_file);
+	err = fs_open(&reader_file, path, FS_O_READ);
+	if (err != 0) {
+		return err;
+	}
+	reader_open = true;
+	*size = (uint32_t)entry.size;
+	return 0;
+}
+
+/** Read exactly @p len bytes at @p offset from the open committed record. */
+int app_mass_storage__record_read(uint32_t offset, void *data, size_t len)
+{
+	int err;
+
+	if (!reader_open) {
+		return -EINVAL;
+	}
+	err = fs_seek(&reader_file, offset, FS_SEEK_SET);
+	if (err != 0) {
+		return err;
+	}
+	return record_read_exact(&reader_file, data, len);
+}
+
+/** Close the committed record opened for transmission. */
+void app_mass_storage__record_read_close(void)
+{
+	if (reader_open) {
+		(void)fs_close(&reader_file);
+		reader_open = false;
+	}
 }

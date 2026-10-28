@@ -44,7 +44,12 @@ static uint8_t last_rx_sequence;
 static uint8_t last_rx_status;
 static uint32_t last_rx_offset;
 static bool transfer_active;
-static uint8_t transfer_id;
+/** Identity of the most recently accepted record, for idempotent retries. */
+static bool last_record_valid;
+static uint8_t last_record_id[EASN_RECORD_ID_SIZE];
+static uint32_t last_transfer_id;
+static uint32_t last_transfer_total;
+static uint32_t transfer_id;
 static uint32_t transfer_total;
 static uint32_t transfer_offset;
 static uint8_t *transfer_buffer;
@@ -235,14 +240,56 @@ static void rx_handler(uint8_t const *data, size_t len)
 	}
 }
 
-/** @brief Enqueue a complete staged record and transfer its buffer ownership. */
-static ifl_status_t deliver_record(uint8_t id, uint8_t sequence, uint32_t len)
+/** @brief Discard the staged transfer and free its buffer. */
+static void transfer_discard(void)
 {
+	if (transfer_buffer != NULL) {
+		easnfw_record_buffer_free(transfer_buffer);
+	}
+	transfer_buffer = NULL;
+	transfer_active = false;
+	transfer_offset = 0u;
+}
+
+/**
+ * @brief Verify and enqueue a complete staged record blob.
+ *
+ * The blob is the SENSOR record file followed by a little-endian CRC-32 of
+ * that file. A repeat of the last accepted record_id is acknowledged without
+ * being delivered again.
+ */
+static ifl_status_t deliver_record(uint32_t id, uint8_t sequence, uint32_t len)
+{
+	uint32_t file_len;
+	uint32_t trailer_crc;
+
+	if (len < EASN_RECORD_ID_OFFSET + EASN_RECORD_ID_SIZE +
+			  EASN_RECORD_TRAILER_SIZE) {
+		transfer_discard();
+		return IFL_STAT__TRANSFER_ERR;
+	}
+	file_len = len - EASN_RECORD_TRAILER_SIZE;
+	trailer_crc = sys_get_le32(transfer_buffer + file_len);
+	if (record_crc32(transfer_buffer, file_len) != trailer_crc) {
+		LOG_ERR("Rejected record transfer id=%u: CRC-32 mismatch", id);
+		transfer_discard();
+		return IFL_STAT__TRANSFER_ERR;
+	}
+	if (last_record_valid &&
+	    memcmp(last_record_id, transfer_buffer + EASN_RECORD_ID_OFFSET,
+		   EASN_RECORD_ID_SIZE) == 0) {
+		LOG_INF("Duplicate record transfer id=%u acknowledged", id);
+		last_transfer_id = id;
+		last_transfer_total = len;
+		transfer_discard();
+		return IFL_STAT__OK;
+	}
+
 	struct easnfw_pipeline_message message = {
 		.sequence = sequence,
-		.length = len,
-		.checksum = record_crc32(transfer_buffer, len),
-		.transfer_id = id,
+		.length = file_len,
+		.checksum = trailer_crc,
+		.transfer_id = (uint8_t)id,
 		.result = EASNFW_PIPELINE_PENDING,
 		.data = transfer_buffer,
 	};
@@ -250,10 +297,15 @@ static ifl_status_t deliver_record(uint8_t id, uint8_t sequence, uint32_t len)
 	if (k_msgq_put(&rx_payload_q, &message, K_NO_WAIT) != 0) {
 		return IFL_STAT__NO_MEMORY;
 	}
+	memcpy(last_record_id, transfer_buffer + EASN_RECORD_ID_OFFSET,
+	       EASN_RECORD_ID_SIZE);
+	last_record_valid = true;
+	last_transfer_id = id;
+	last_transfer_total = len;
 	transfer_buffer = NULL;
 	transfer_active = false;
 	LOG_INF("Accepted complete record transfer id=%u bytes=%u crc32=%08x",
-		id, len, message.checksum);
+		id, file_len, trailer_crc);
 	return IFL_STAT__OK;
 }
 
@@ -272,12 +324,7 @@ static ifl_status_t receive_record(easn_frame_hdr_t const *header,
 		    abort_header.transfer_id != transfer_id) {
 			return IFL_STAT__BAD_PARAM;
 		}
-		if (transfer_buffer != NULL) {
-			easnfw_record_buffer_free(transfer_buffer);
-		}
-		transfer_buffer = NULL;
-		transfer_active = false;
-		transfer_offset = 0u;
+		transfer_discard();
 		*next_offset = 0u;
 		return IFL_STAT__OK;
 	}
@@ -317,6 +364,19 @@ static ifl_status_t receive_record(easn_frame_hdr_t const *header,
 	    ((header->flags & EASN_FLAG_LAST) == 0u &&
 	     end_offset == fragment.total_len)) {
 		return IFL_STAT__TRANSFER_ERR;
+	}
+	if (!transfer_active && last_record_valid &&
+	    fragment.transfer_id == last_transfer_id &&
+	    fragment.total_len == last_transfer_total &&
+	    (header->flags & EASN_FLAG_LAST) != 0u) {
+		/* The ACK of the final fragment was lost; it was already applied. */
+		*next_offset = end_offset;
+		return IFL_STAT__OK;
+	}
+	if (transfer_active && fragment.offset == 0u &&
+	    fragment.transfer_id != transfer_id) {
+		/* SENSOR started a new transfer, e.g. after a reboot. */
+		transfer_discard();
 	}
 	if (!transfer_active) {
 		if (fragment.offset != 0u) {

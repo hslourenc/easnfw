@@ -185,6 +185,17 @@ and sequence receives the previous acknowledgement status again without
 delivering the command to the application a second time. Unflagged commands
 are always delivered, because a rebooted peer restarts its sequence numbers.
 
+Both UART drivers report received bytes after a short idle time
+(``CONFIG_EASNFW_IFL_UART_RX_INTERBYTE_TIMEOUT_MS`` on SENSOR, 2 ms on CLOUD).
+This time is added to the latency of every acknowledgement, so it must stay far
+below the ACK timeout (default 100 ms); a 50 ms idle time made 2 KiB fragments
+miss the former 50 ms ACK timeout.
+
+The RTS/CTS lines must be crossed between the boards (RTS to CTS and CTS to
+RTS). Straight-through wiring leaves both transmitters stalled and appears as
+ACK timeouts and ``TX already in progress`` errors on SENSOR and a failed
+``CLOUD_READY`` handshake on CLOUD.
+
 Both endpoints re-enable UART reception if the driver disables it (for example
 after a line error caused by the peer resetting), and SENSOR bounds each frame
 transmission to 200 ms so a peer that holds its RTS line cannot keep the
@@ -196,6 +207,40 @@ offset, and an unexpected offset is rejected. ``LAST`` marks the final
 fragment, while ``ABORT`` ends an in-progress transfer. Fragment-level
 acknowledgements do not imply that a complete record was durably stored by the
 cloud backend.
+
+Record transfer
+---------------
+
+``cloud_link`` on SENSOR streams each committed record through
+``IFL_CMD_CLOUD__RECORD_DATA`` as a single blob made of the ``.rec`` file
+bytes followed by a four-byte little-endian CRC-32 (IEEE) of those bytes.
+``total_len`` is therefore the file size plus four. SENSOR makes one pass over
+the file to compute the CRC and then sends consecutive fragments of up to
+``INTERFW_LINK_UART_MAX_FRAG_DATA`` bytes, reading each from the SD card just
+before it is sent so no complete record is held in RAM. Every fragment is
+acknowledged; ``LAST`` marks the final one.
+
+``record_id`` is the first field of the record metadata, at the constant offset
+``EASN_RECORD_ID_OFFSET`` of the blob (checked at build time on SENSOR).
+CLOUD uses it for idempotency:
+
+* a ``BAD_OFFSET`` ACK carries the offset CLOUD expects, and SENSOR resumes
+  from it (up to three times per transfer);
+* a retransmitted final fragment whose ACK was lost is acknowledged again;
+* a new ``transfer_id`` at offset zero discards a stale partial transfer, for
+  example after a SENSOR reboot;
+* a blob whose CRC-32 or size is wrong is rejected with ``TRANSFER_ERR`` and
+  produces no cloud payload; and
+* a blob with the ``record_id`` of the last accepted record is acknowledged
+  but not delivered a second time.
+
+A successful final ACK means only that CLOUD received and verified the record.
+SENSOR keeps the record on the SD card and does not mark it delivered; the
+durable cloud acknowledgement and the retry policy for failed transfers are
+tracked in :doc:`open_items`. CLOUD currently stages a whole blob in RAM, so
+it rejects records larger than ``CONFIG_EASNFW_CLOUD_MAX_RECORD_SIZE``; a
+full-length track is larger than that limit, which is also tracked in
+:doc:`open_items`.
 
 Command behavior
 ----------------
@@ -209,6 +254,10 @@ reset-fw-cloud
 #. EASNFW-CLOUD acknowledges the command, delays briefly, then cold-reboots.
 #. After restarting, EASNFW-CLOUD sends ``CLOUD_READY``; its acknowledgement
    confirms that the peer has completed IFL initialization.
+#. EASNFW-SENSOR sends that acknowledgement first, then signals the waiting
+   reset sequence, which briefly lets the transmission drain and reboots
+   EASNFW-SENSOR. Signalling before the acknowledgement would reboot SENSOR
+   with the ACK unsent and make CLOUD's ``CLOUD_READY`` handshake fail.
 
 .. note::
 

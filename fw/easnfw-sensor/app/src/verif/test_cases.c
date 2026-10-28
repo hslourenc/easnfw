@@ -4,6 +4,7 @@
 #include <zephyr/fs/fs.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/printk.h>
+#include <easnfw/cloud_link.h>
 #include <easnfw/config.h>
 #include <easnfw/interfw_link.h>
 #include <easnfw/mass_storage.h>
@@ -387,29 +388,39 @@ void app_test_cases__tc046(unsigned int test_case_step)
 	}
 }
 
-/** Verify TC-048's UTC prerequisite and synchronization path over IFL. */
+/** Duration of the simulated network outage in TC-048. */
+#define TC048_OUTAGE_MS 5000
+
+/**
+ * Verify TC-048: UTC is inaccessible before synchronization, and acquisition
+ * keeps retrying through a simulated network outage until UTC is restored.
+ */
 void app_test_cases__tc048(unsigned int test_case_step)
 {
 	char timestamp[EASNFW_UTC_TIMESTAMP_SIZE];
 	int64_t before_ms;
 	int64_t after_ms;
+	int64_t start_ms;
+	uint32_t attempts;
 	int err;
 
 	(void)test_case_step;
+	app_utc_time__verification_outage_start(TC048_OUTAGE_MS);
 	err = app_utc_time__now_ms(&before_ms);
 	if (err != -ENODATA) {
 		LOG_ERR("TCSTATUS_FAIL - unsynchronized UTC was accessible: %d", err);
 		return;
 	}
-	err = ifl__utc_time_request_tx();
-	if (err != 0) {
-		LOG_ERR("TCSTATUS_FAIL - UTC request was not acknowledged: %d", err);
-		return;
-	}
-	err = app_utc_time__wait(K_SECONDS(70));
+	start_ms = k_uptime_get();
+	err = app_utc_time__acquire(K_SECONDS(2), 1U, K_SECONDS(70), &attempts);
 	if (err != 0) {
 		LOG_WRN("TCSTATUS_INCONCLUSIVE - cellular UTC was unavailable: %d",
 			err);
+		return;
+	}
+	if (k_uptime_get() - start_ms < TC048_OUTAGE_MS || attempts < 2U) {
+		LOG_ERR("TCSTATUS_FAIL - acquisition ended during the outage (%u requests)",
+			attempts);
 		return;
 	}
 	err = app_utc_time__now_ms(&before_ms);
@@ -425,8 +436,61 @@ void app_test_cases__tc048(unsigned int test_case_step)
 		LOG_ERR("TCSTATUS_FAIL - synchronized UTC was invalid: %d", err);
 		return;
 	}
-	LOG_INF("TCSTATUS_SUCCESS - UTC synchronized and formatted as %s",
-		timestamp);
+	LOG_INF("TCSTATUS_SUCCESS - UTC restored after %u requests, formatted as %s",
+		attempts, timestamp);
+}
+
+/** Number of 16-bit samples in the synthetic TC-043 record (spans 4 fragments). */
+#define TC043_SAMPLE_COUNT 4000U
+
+/**
+ * Verify TC-043: commit a synthetic record spanning several IFL fragments and
+ * stream it to EASNFW-CLOUD. The final ACK confirms that CLOUD reassembled the
+ * blob and that its CRC-32 and record_id checks passed.
+ */
+void app_test_cases__tc043(unsigned int test_case_step)
+{
+	struct app_mass_storage_record_metadata metadata = {
+		.sample_rate_hz = CONFIG_EASNFW_AUDIO_SAMPLE_RATE_HZ,
+		.track_duration_seconds = 1U,
+		.total_sample_count = TC043_SAMPLE_COUNT,
+		.channels = 1U,
+		.bits_per_sample = 16U,
+		.schema_version = 1U,
+		.timestamp_source = APP_TIMESTAMP_SOURCE_CELLULAR_NETWORK,
+	};
+	static int16_t samples[TC043_SAMPLE_COUNT];
+	uint32_t id_seed[4] = {
+		(uint32_t)k_uptime_get(), k_cycle_get_32(), ++tc042_id_counter,
+		0x54433433U,
+	};
+	int err;
+
+	(void)test_case_step;
+	memcpy(metadata.record_id, id_seed, sizeof(metadata.record_id));
+	for (size_t i = 0U; i < ARRAY_SIZE(samples); ++i) {
+		samples[i] = (int16_t)(i * 7U);
+	}
+	err = app_mass_storage__init();
+	if (err == 0) {
+		err = app_mass_storage__record_begin(&metadata);
+	}
+	if (err == 0) {
+		err = app_mass_storage__record_append(samples, sizeof(samples));
+	}
+	if (err == 0) {
+		err = app_mass_storage__record_commit(&metadata);
+	}
+	if (err != 0) {
+		LOG_ERR("TCSTATUS_FAIL - could not commit the test record: %d", err);
+		return;
+	}
+	err = cloud_link__record_send(metadata.record_id);
+	if (err != 0) {
+		LOG_ERR("TCSTATUS_FAIL - multi-frame record transfer failed: %d", err);
+		return;
+	}
+	LOG_INF("TCSTATUS_SUCCESS - multi-frame record reassembled and verified by CLOUD");
 }
 
 void app_test_cases__set_selftest_nvs_fault(void)

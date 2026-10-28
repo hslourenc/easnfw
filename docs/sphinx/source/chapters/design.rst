@@ -174,12 +174,16 @@ images are signed with the SDK development key unless the build overrides
 private key kept outside the repository; the SDK key is not a production trust
 anchor.
 
-EASNFW-SENSOR confirms a trial image only after local self-tests, UTC
-synchronization, and reset-history persistence succeed. EASNFW-CLOUD confirms
-after the local inter-firmware link initializes. See :doc:`open_items` for the
-remaining backend-health and rollback-validation gaps. An unconfirmed image
-can be rolled back by MCUboot on a subsequent reset. The firmware does not
-initiate a reset to trigger rollback.
+EASNFW-SENSOR confirms a trial image only after its self-test sequence
+completes successfully. That sequence includes the IFL PING handshake with
+EASNFW-CLOUD, so an image that cannot reach its peer is not confirmed. Cellular
+UTC is deliberately not part of the criterion, because a node without network
+coverage would otherwise roll back on its next reset. If the self-test fails,
+SENSOR enters diagnostic state without confirming the image. EASNFW-CLOUD
+confirms after its local self-test and IFL initialization (see
+:doc:`open_items` for the backend-health criterion). An unconfirmed image is
+reverted by MCUboot on the next reset. The firmware never initiates a reset to
+trigger rollback.
 
 The bootloader and dual-slot layout provide a foundation only. Remaining
 FUOTA, rollback, partition-size, and update power-loss decisions are listed in
@@ -328,8 +332,9 @@ Implementation Notes
 ====================
 
 The current architecture uses SENSOR NVS for failure details and retains
-FAT-formatted records for direct PC access. The IFL record-delivery path and
-the audio algorithm remain at their documented baseline states; the complete
+FAT-formatted records for direct PC access. The IFL record-streaming path is
+implemented up to the durable cloud acknowledgement and the audio algorithm
+remains at its documented baseline; the complete
 list of pending decisions and validation is maintained in :doc:`open_items`.
 
 Storage deliberately remains FAT so records can be inspected and copied on a
@@ -344,8 +349,8 @@ This is application-level validation and recovery, not a transactional FAT
 guarantee. ``fs_sync()`` and rename cannot prevent arbitrary power loss from
 interrupting FAT metadata or the SD card's internal flash translation layer.
 The current track may be lost, and filesystem damage can affect older files.
-CRCs detect accidental corruption but do not authenticate data. See
-:doc:`open_items` for the required durability validation.
+CRCs detect accidental corruption but do not authenticate data. Power-cut
+durability on the target card is not tracked as a firmware item.
 
 Audio Interface Decision
 ========================
@@ -368,7 +373,9 @@ UTC time is obtained from the nRF9151 modem's LTE network time using Nordic's
 date-time library, then transferred to SENSOR over an acknowledged IFL command.
 SENSOR anchors UTC to its monotonic uptime and formats record timestamps as
 ISO-8601 UTC strings with ``Z``. Each boot waits for valid UTC before acquiring
-data; time unavailability alone does not trigger diagnostic state. Network-time
+data: ``app_utc_time__acquire()`` requests time from CLOUD, waits 30 s, and
+repeats after ``CONFIG_EASNFW_UTC_SYNC_RETRY_SECONDS`` for as long as it takes.
+Time unavailability alone does not trigger diagnostic state. Network-time
 validation is tracked in :doc:`open_items`.
 
 The nRF5340's direct PDM peripheral is not the baseline because its hardware
@@ -381,8 +388,8 @@ at the provisional I2C address ``0x76`` on the Audio DK I2C connector. The
 address and wiring have not been validated on production hardware. The Zephyr
 BME680 driver provides temperature, pressure, humidity, and gas resistance.
 Gas resistance is only a raw VOC-related indicator, not a calibrated VOC
-concentration. Sensor selection and production validation are tracked in
-:doc:`open_items`.
+concentration, and is the quantity the firmware records. The address
+confirmation is tracked in :doc:`open_items`.
 
 Mass storage is independent from the audio codec. EASNFW-SENSOR accesses the
 Audio DK's SD-card holder using the Zephyr SDHC/filesystem stack over SPI.

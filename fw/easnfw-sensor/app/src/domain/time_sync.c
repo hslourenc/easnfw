@@ -4,7 +4,12 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 
+#include <zephyr/logging/log.h>
+
+#include <easnfw/interfw_link.h>
 #include <easnfw/time_sync.h>
+
+LOG_MODULE_REGISTER(easnfw_time_sync, LOG_LEVEL_INF);
 
 #define UTC_MIN_VALID_MS INT64_C(946684800000)
 #define UTC_MAX_VALID_MS INT64_C(253402300799999)
@@ -13,6 +18,9 @@ static struct k_spinlock utc_lock;
 static int64_t utc_anchor_ms;
 static int64_t uptime_anchor_ms;
 static bool utc_valid;
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+static int64_t utc_withhold_until_ms;
+#endif
 K_SEM_DEFINE(utc_sync_sem, 0, 1);
 
 /** Return whether an initial valid UTC synchronization has been received. */
@@ -34,6 +42,13 @@ int app_utc_time__set(uint64_t unix_time_ms)
 	}
 
 	k_spinlock_key_t key = k_spin_lock(&utc_lock);
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	if (k_uptime_get() < utc_withhold_until_ms) {
+		/* Simulated network outage: acknowledged but not applied. */
+		k_spin_unlock(&utc_lock, key);
+		return 0;
+	}
+#endif
 	utc_anchor_ms = (int64_t)unix_time_ms;
 	uptime_anchor_ms = k_uptime_get();
 	utc_valid = true;
@@ -105,3 +120,49 @@ int app_utc_time__wait(k_timeout_t timeout)
 	}
 	return 0;
 }
+
+/** Request UTC from EASNFW-CLOUD until it is received or the deadline expires. */
+int app_utc_time__acquire(k_timeout_t request_timeout, uint32_t retry_seconds,
+			  k_timeout_t deadline, uint32_t *attempts)
+{
+	k_timepoint_t end = sys_timepoint_calc(deadline);
+	uint32_t count = 0U;
+	int err;
+
+	while (!app_utc_time__is_valid()) {
+		if (sys_timepoint_expired(end)) {
+			err = -ETIMEDOUT;
+			goto out;
+		}
+		++count;
+		err = ifl__utc_time_request_tx();
+		if (err != 0) {
+			LOG_WRN("UTC request failed (%d); acquisition remains blocked",
+				err);
+		}
+		if (app_utc_time__wait(request_timeout) != 0) {
+			LOG_WRN("UTC is still unavailable; retrying in %u seconds",
+				retry_seconds);
+			k_sleep(K_SECONDS(retry_seconds));
+		}
+	}
+	err = 0;
+out:
+	if (attempts != NULL) {
+		*attempts = count;
+	}
+	return err;
+}
+
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+/** Forget the UTC anchor and ignore UTC updates for a simulated outage. */
+void app_utc_time__verification_outage_start(uint32_t duration_ms)
+{
+	k_spinlock_key_t key = k_spin_lock(&utc_lock);
+
+	utc_valid = false;
+	utc_withhold_until_ms = k_uptime_get() + duration_ms;
+	k_spin_unlock(&utc_lock, key);
+	k_sem_reset(&utc_sync_sem);
+}
+#endif

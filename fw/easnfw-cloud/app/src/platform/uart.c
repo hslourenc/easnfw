@@ -12,6 +12,12 @@
 
 LOG_MODULE_REGISTER(easnfw_cloud_uart, LOG_LEVEL_INF);
 
+/**
+ * UART idle time after which received bytes are reported. It adds to the
+ * ACK latency of every frame, so it must be much shorter than the ACK timeout.
+ */
+#define IFL_RX_IDLE_TIMEOUT_US 2000u
+
 static const struct device *const uart_dev =
 	DEVICE_DT_GET(DT_CHOSEN(easnfw_interfw_link_uart));
 static uint8_t tx_buffer[INTERFW_LINK_UART_MAX_FRAME_SIZE];
@@ -42,7 +48,7 @@ static void uart_callback(const struct device *dev, struct uart_event *event,
 		/* A line error (e.g. peer reset glitch) disables RX; restart it. */
 		current_rx_buffer = rx_buffer_a;
 		(void)uart_rx_enable(dev, current_rx_buffer, sizeof(rx_buffer_a),
-				     50000u);
+				     IFL_RX_IDLE_TIMEOUT_US);
 	} else if (event->type == UART_RX_BUF_REQUEST) {
 		uint8_t *next = current_rx_buffer == rx_buffer_a ?
 			rx_buffer_b : rx_buffer_a;
@@ -138,6 +144,6 @@ int easnfw_cloud_uart_rx_set(easnfw_cloud_uart_rx_handler_t handler)
 	rx_handler = handler;
 	current_rx_buffer = rx_buffer_a;
 	err = uart_rx_enable(uart_dev, current_rx_buffer, sizeof(rx_buffer_a),
-			     50000u);
+			     IFL_RX_IDLE_TIMEOUT_US);
 	return err;
 }

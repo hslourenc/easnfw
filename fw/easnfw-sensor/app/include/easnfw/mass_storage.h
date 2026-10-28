@@ -74,4 +74,29 @@ int app_mass_storage__record_commit(
 /** Abort the active record while retaining its temporary file. */
 int app_mass_storage__record_abort(void);
 
+/**
+ * @brief Open a committed record for transmission.
+ *
+ * Only one record may be open for reading at a time.
+ *
+ * @param record_id 16-byte record identifier.
+ * @param size Receives the record file size in bytes.
+ * @return 0 on success, otherwise a negative errno value.
+ */
+int app_mass_storage__record_read_open(const uint8_t record_id[16],
+				       uint32_t *size);
+
+/**
+ * @brief Read an exact byte range from the record opened for reading.
+ *
+ * @param offset Byte offset in the record file.
+ * @param data Output buffer.
+ * @param len Number of bytes to read.
+ * @return 0 on success, -EIO on a short read, otherwise a negative errno.
+ */
+int app_mass_storage__record_read(uint32_t offset, void *data, size_t len);
+
+/** @brief Close the record opened for reading. */
+void app_mass_storage__record_read_close(void);
+
 #endif

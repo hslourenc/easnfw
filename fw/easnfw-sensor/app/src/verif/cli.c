@@ -33,9 +33,9 @@ static int cli__cmd_tc(struct shell* const shell, size_t argc, char** argv)
 		return -EINVAL;
 	}
 	if (test_case > 13UL && test_case != 20UL &&
-	    test_case != 42UL && test_case != 46UL && test_case != 48UL) {
+	    test_case != 42UL && test_case != 43UL && test_case != 46UL && test_case != 48UL) {
 		shell_error(shell,
-			    "supported test cases are 1-13, 20, 42, 46, and 48");
+			    "supported test cases are 1-13, 20, 42, 43, 46, and 48");
 		return -EINVAL;
 	}
 
@@ -94,6 +94,9 @@ static int cli__cmd_tc(struct shell* const shell, size_t argc, char** argv)
 		break;
 	case 42U:
 		app_test_cases__tc042((unsigned int)step);
+		break;
+	case 43U:
+		app_test_cases__tc043((unsigned int)step);
 		break;
 	case 46U:
 		app_test_cases__tc046((unsigned int)step);

@@ -70,4 +70,23 @@ void ifl__verification_ping_override_set(bool enabled);
  */
 int ifl__easnfwcloud_ready_rx(void);
 
+/**
+ * @brief Send a command with frame flags and report the ACK's next offset.
+ *
+ * Same stop-and-wait behavior as ifl__cmd_tx(). Retransmissions add
+ * EASN_FLAG_RETRANSMIT to @p flags. For fragment commands, @p next_offset
+ * receives the offset the receiver expects next, which is the resume point
+ * when the result is -EASNFW_STATUS__INTERFW_LINK_ACK_BAD_OFFSET.
+ *
+ * @param cmd Command to send.
+ * @param flags Frame flags, see EASN_FLAG_*.
+ * @param payload Command payload, or NULL when payload_len is zero.
+ * @param payload_len Payload length in bytes.
+ * @param next_offset Optional; receives the ACK's next_offset.
+ * @return 0 on success, otherwise a negative EASNFW status code.
+ */
+int ifl__cmd_tx_flags(uint8_t const cmd, uint8_t const flags,
+		      uint8_t const *payload, uint16_t const payload_len,
+		      uint32_t *const next_offset);
+
 #endif /* EASNFW_INTERFW_LINK_H */

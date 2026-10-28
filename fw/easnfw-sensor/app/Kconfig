@@ -81,7 +81,7 @@ config EASNFW_IFL_UART_MAX_PAYLOAD
 
 config EASNFW_IFL_UART_ACK_TIMEOUT_MS
 	int "ACK timeout (ms)"
-	default 50
+	default 100
 	range 5 5000
 
 config EASNFW_IFL_UART_MAX_RETRIES
@@ -90,9 +90,9 @@ config EASNFW_IFL_UART_MAX_RETRIES
 	range 0 20
 
 config EASNFW_IFL_UART_RX_INTERBYTE_TIMEOUT_MS
-	int "RX inter-byte timeout (ms)"
-	default 50
-	range 5 1000
+	int "RX idle timeout (ms)"
+	default 2
+	range 1 1000
 
 config EASNFW_IFL_UART_RX_RING_BUF_SIZE
 	int "RX ring buffer size (bytes)"

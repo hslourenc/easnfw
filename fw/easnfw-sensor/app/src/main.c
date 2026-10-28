@@ -45,32 +45,30 @@ int main(void)
 		reset__diagnostic_state(err, NULL);
 	}
 	reset__start_recovery_counter_timer();
-
-	while (!app_utc_time__is_valid()) {
-		err = ifl__utc_time_request_tx();
-		if (err != 0) {
-			LOG_WRN("UTC request failed (%d); acquisition remains blocked",
-				err);
-		}
-		err = app_utc_time__wait(K_SECONDS(30));
-		if (err != 0) {
-			LOG_WRN("UTC is still unavailable; retrying in %u seconds",
-				CONFIG_EASNFW_UTC_SYNC_RETRY_SECONDS);
-			k_sleep(K_SECONDS(CONFIG_EASNFW_UTC_SYNC_RETRY_SECONDS));
-		}
-	}
-	err = reset__history_update();
-	if (err != 0) {
-		LOG_ERR("Reset history update failed: %d", err);
-	}
 #ifdef CONFIG_BOOTLOADER_MCUBOOT
-	if (selftest_ok && err == 0) {
+	/*
+	 * The self-test sequence includes the IFL PING handshake with
+	 * EASNFW-CLOUD. A new image is confirmed only when it passes, so a
+	 * reboot reverts an image that cannot reach its peer. Cellular UTC is
+	 * deliberately not part of the criterion.
+	 */
+	if (selftest_ok) {
 		err = boot_write_img_confirmed();
 		if (err != 0) {
 			LOG_ERR("Could not confirm MCUboot image: %d", err);
 		}
+	} else {
+		LOG_ERR("Self-test failed; MCUboot image left unconfirmed");
 	}
 #endif
+
+	(void)app_utc_time__acquire(K_SECONDS(30),
+				    CONFIG_EASNFW_UTC_SYNC_RETRY_SECONDS,
+				    K_FOREVER, NULL);
+	err = reset__history_update();
+	if (err != 0) {
+		LOG_ERR("Reset history update failed: %d", err);
+	}
 	sampling_start();
 	audio_processing_start();
 	storage_start();

@@ -57,6 +57,7 @@ static bool ifl_verification_ping_override;
 static uint8_t ifl_ack_cmd;
 static uint8_t ifl_ack_seq;
 static ifl_status_t ifl_ack_status;
+static uint32_t ifl_ack_next_offset;
 static uint8_t ifl_last_rx_cmd;
 static uint8_t ifl_last_rx_seq;
 static ifl_status_t ifl_last_rx_status;
@@ -140,6 +141,8 @@ static void ifl__rx_frame_valid(void)
 	    (header.len == sizeof(easn_ack_payload_t)) &&
 	    ifl_ack_waiting) {
 		ifl_ack_status = (ifl_status_t)ifl_rx_frame[INTERFW_LINK_UART_HDR_SIZE];
+		ifl_ack_next_offset = sys_get_le32(
+			&ifl_rx_frame[INTERFW_LINK_UART_HDR_SIZE + 2u]);
 		LOG_DBG("Received ACK cmd=0x%02x seq=%u status=0x%02x",
 			header.cmd_id, header.seq, ifl_ack_status);
 		k_sem_give(&ifl_ack_sem);
@@ -233,9 +236,8 @@ static ifl_status_t ifl__received_command_status(
 			if (payload == NULL) {
 				return IFL_STAT__BAD_PARAM;
 			}
-			return ifl__easnfwcloud_ready_rx() == 0
-				? IFL_STAT__OK
-				: IFL_STAT__INTERNAL_ERR;
+			/* The ready flag is recorded after the ACK is sent. */
+			return IFL_STAT__OK;
 		}
 		if (header->cmd_id == IFL_CMD_SENSOR__UTC_TIME) {
 			uint64_t utc_ms;
@@ -303,6 +305,16 @@ static void ifl__rx_worker(void *arg1, void *arg2, void *arg3)
 		ifl_state.last_rx_seq = header.seq;
 		ifl_state.last_rx_seq_valid = true;
 		ifl__ack_tx(&header, status);
+
+		/*
+		 * Signal readiness only after the ACK is on the wire: the reset
+		 * sequence reboots SENSOR as soon as it is signalled, and an
+		 * unsent ACK would make CLOUD's handshake fail.
+		 */
+		if ((header.cmd_id == IFL_CMD_SENSOR__CLOUD_READY) &&
+		    (status == IFL_STAT__OK)) {
+			(void)ifl__easnfwcloud_ready_rx();
+		}
 	}
 }
 
@@ -427,6 +439,13 @@ int ifl__init(void)
 int ifl__cmd_tx(uint8_t const cmd, uint8_t const *payload,
 		uint16_t const payload_len)
 {
+	return ifl__cmd_tx_flags(cmd, 0u, payload, payload_len, NULL);
+}
+
+int ifl__cmd_tx_flags(uint8_t const cmd, uint8_t const flags,
+		      uint8_t const *payload, uint16_t const payload_len,
+		      uint32_t *const next_offset)
+{
 	/*
 	 * Keep the complete frame local while validating and constructing it.
 	 * uart__ifl_tx() copies it into the asynchronous transport buffer.
@@ -437,7 +456,7 @@ int ifl__cmd_tx(uint8_t const cmd, uint8_t const *payload,
 		.type = EASN_FRAME_CMD,
 		.cmd_id = cmd,
 		.seq = ifl_state.next_tx_seq,
-		.flags = 0u,
+		.flags = flags,
 		.len = payload_len,
 	};
 	size_t const body_len = (size_t)INTERFW_LINK_UART_HDR_SIZE + payload_len;
@@ -476,7 +495,7 @@ int ifl__cmd_tx(uint8_t const cmd, uint8_t const *payload,
 	for (uint32_t attempt = 0u;
 	     attempt <= CONFIG_EASNFW_IFL_UART_MAX_RETRIES;
 	     ++attempt) {
-		header.flags = (attempt == 0u) ? 0u : EASN_FLAG_RETRANSMIT;
+		header.flags = (attempt == 0u) ? flags : (flags | EASN_FLAG_RETRANSMIT);
 		LOG_DBG("Sending IFL command 0x%02x seq=%u attempt=%u",
 			cmd, header.seq, attempt + 1u);
 		ifl_ack_cmd = cmd;
@@ -511,6 +530,9 @@ int ifl__cmd_tx(uint8_t const cmd, uint8_t const *payload,
 		 * CONFIG_EASNFW_IFL_UART_MAX_RETRIES times.
 		 */
 		if (k_sem_take(&ifl_ack_sem, ack_timeout) == 0) {
+			if (next_offset != NULL) {
+				*next_offset = ifl_ack_next_offset;
+			}
 			if (ifl_ack_status == IFL_STAT__BUSY ||
 			    ifl_ack_status == IFL_STAT__TRANSFER_ERR) {
 				LOG_WRN("Retryable ACK for IFL command 0x%02x: status=0x%02x",

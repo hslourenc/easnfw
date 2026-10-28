@@ -250,6 +250,19 @@ typedef struct IFL_PACKED {
     (INTERFW_LINK_UART_MAX_PAYLOAD - sizeof(easn_frag_hdr_t))
 
 /**
+ * @name Record transfer blob
+ * A RECORD_DATA blob is the committed record file followed by a
+ * little-endian CRC-32 (IEEE) of all preceding bytes. The 16-byte record_id
+ * is the first member of the record metadata that follows the file header's
+ * magic, version and header_size fields.
+ * @{
+ */
+#define EASN_RECORD_ID_OFFSET    8u  /**< Offset of record_id in the blob. */
+#define EASN_RECORD_ID_SIZE      16u /**< Size of record_id in bytes.      */
+#define EASN_RECORD_TRAILER_SIZE 4u  /**< Size of the CRC-32 trailer.      */
+/** @} */
+
+/**
  * @brief Three-byte semantic version sent in ``CLOUD_READY``.
  *
  * Members are serialized as major, minor, and patch version bytes.
