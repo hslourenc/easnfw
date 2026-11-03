@@ -45,7 +45,7 @@ Quick build:
 
 ```sh
 python -m pip install -r docs/requirements.txt
-PLANTUML_JAR=/path/to/plantuml.jar make -C docs/sphinx html
+make -C docs/sphinx html
 ```
 
 The output is written to `docs/sphinx/build/html`.
