@@ -450,6 +450,7 @@ void app_test_cases__tc048(unsigned int test_case_step)
  */
 void app_test_cases__tc043(unsigned int test_case_step)
 {
+	static const int64_t start_utc_ms = 946684800000LL;
 	struct app_mass_storage_record_metadata metadata = {
 		.sample_rate_hz = CONFIG_EASNFW_AUDIO_SAMPLE_RATE_HZ,
 		.track_duration_seconds = 1U,
@@ -467,6 +468,18 @@ void app_test_cases__tc043(unsigned int test_case_step)
 	int err;
 
 	(void)test_case_step;
+	err = app_utc_time__format(start_utc_ms, metadata.audio_start_utc,
+				   sizeof(metadata.audio_start_utc));
+	if (err == 0) {
+		err = app_utc_time__format(start_utc_ms + 1000,
+					   metadata.audio_end_utc,
+					   sizeof(metadata.audio_end_utc));
+	}
+	if (err != 0) {
+		LOG_ERR("TCSTATUS_FAIL - could not prepare synthetic UTC metadata: %d",
+			err);
+		return;
+	}
 	memcpy(metadata.record_id, id_seed, sizeof(metadata.record_id));
 	for (size_t i = 0U; i < ARRAY_SIZE(samples); ++i) {
 		samples[i] = (int16_t)(i * 7U);

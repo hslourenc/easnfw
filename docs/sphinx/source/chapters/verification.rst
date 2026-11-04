@@ -1723,8 +1723,8 @@ fragments) to the SD card and streams it with ``cloud_link__record_send()``.
 EASNFW-CLOUD accepts the transfer only after every fragment is in sequence, the
 CRC-32 trailer over the whole record file matches, and ``record_id`` is
 readable at its fixed offset, so a successful final acknowledgement proves the
-reassembled bytes equal the committed file. The case needs EASNFW-CLOUD but
-no SIM or cloud backend.
+reassembled bytes equal the committed file. The record uses a fixed synthetic
+UTC interval, so the case needs EASNFW-CLOUD but no SIM or cloud backend.
 
 Procedure
 """""""""
