@@ -3,6 +3,7 @@
 
 #include <zephyr/fs/fs.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/random/random.h>
 #include <zephyr/sys/printk.h>
 #include <easnfw/cloud_link.h>
 #include <easnfw/config.h>
@@ -270,8 +271,8 @@ void app_test_cases__tc042(unsigned int test_case_step)
 	for (unsigned int attempt = 0U; attempt < 4U; ++attempt) {
 		uint8_t id_bytes[16];
 		uint32_t id_seed[4] = {
-			(uint32_t)k_uptime_get(),
-			k_cycle_get_32(),
+			sys_rand32_get(),
+			sys_rand32_get(),
 			++tc042_id_counter,
 			0x54433042U,
 		};
@@ -462,7 +463,7 @@ void app_test_cases__tc043(unsigned int test_case_step)
 	};
 	static int16_t samples[TC043_SAMPLE_COUNT];
 	uint32_t id_seed[4] = {
-		(uint32_t)k_uptime_get(), k_cycle_get_32(), ++tc042_id_counter,
+		sys_rand32_get(), sys_rand32_get(), ++tc042_id_counter,
 		0x54433433U,
 	};
 	int err;

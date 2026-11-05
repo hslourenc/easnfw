@@ -101,6 +101,60 @@ exhaustion and reuse deterministically. Measure I2S timing, queue wait,
 processing/storage latency, peak memory, and track-abort behavior under
 representative SD-card load before claiming the real-time budget is met.
 
+Open Issues
+===========
+
+TC-043 can time out after preceding HIL cases
+---------------------------------------------
+
+**Reproduction.** Connect the SENSOR and CLOUD boards with the IFL wiring,
+flash the SENSOR HIL image and a compatible CLOUD image, then run:
+
+.. code-block:: console
+
+   easncli tcfull --implemented-only --no-human --no-env-sensor --no-sim --port COM3
+
+The runner resets SENSOR before each test. In the observed full run, TC-042
+passed, then TC-043 produced no terminal test status before the CLI's
+120-second timeout. The aggregate result was 12 passed and TC-043 failed; TC-046
+ran and passed afterward. Running TC-043 alone, or issuing TC-042, reset, then
+TC-043 manually, has also passed, so those checks do not reliably reproduce the
+failure.
+
+**Findings so far.** The 8 MHz line is only the last line captured by CLI_C,
+not evidence that SENSOR remains blocked in SD initialization. In a reproduced
+clean-HIL sequence, a debugger attached after CLI_C timed out found the shell
+and logging threads idle, mass storage initialized, the record file closed, and
+the cloud-transfer counter advanced. A later serial capture contained the
+missing ``SD card mounted``, record-commit, IFL acknowledgement, and
+``TCSTATUS_SUCCESS`` messages, timestamped within the first second after boot.
+That run completed on SENSOR; CLI_C did not receive its terminal result.
+
+The SENSOR UART0 overlay enables hardware flow control, while ``easncli``
+currently opens COM3 with PySerial's default ``rtscts=False``. A manual
+TC-042/TC-043 sequence with RTS/CTS enabled also timed out, so the mismatch is
+a candidate cause, not a verified fix. Enabling verbose SD/SDHC logging changed
+the timing, dropped thousands of log messages, and allowed TC-043 to pass; it
+is not a reliable negative result. No SD initialization failure or firmware
+deadlock has been established.
+
+Raising ``CONFIG_LOG_BUFFER_SIZE`` from the deferred-mode default of 1024 to
+8192 in ``hil.conf`` removed the timeout in about ten TC-042/TC-043 sequences,
+which points to dropped log lines. In those runs TC-043 instead failed about
+half of the time with ``TCSTATUS_FAIL - could not commit the test record: -17``
+(``-EEXIST`` from ``app_mass_storage__record_begin``). The cause was the test
+record ID: TC-042/TC-043 derived it from uptime, cycle counter and a counter
+that resets on boot, so after the per-case reset it was nearly identical every
+run and collided with the record left on the SD card by the previous run. The
+tests now use ``sys_rand32_get()`` like production; 10 consecutive
+TC-042/TC-043 sequences passed, and a full ``tcfull --implemented-only`` run
+passed 13 of 13 executed cases.
+
+Previously planned: capture the COM3/VCOM0 receive and flow-control behavior during the
+sequential run and verify a host configuration that reliably receives the
+terminal result. Do not change SD initialization or the default test order
+until the serial result path is understood.
+
 Closed items
 ============
 

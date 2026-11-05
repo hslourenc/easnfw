@@ -65,13 +65,15 @@ normal CLOUD image to the nRF9151 board. Connect UART2 between the development
 kits as described in :doc:`interfw_link`; keep the SENSOR USB VCOM connected
 for CLI_H, logs, and CLI_C.
 
-In the HIL image, UART0/VCOM0 is configured by the Audio DK as 115200 baud,
-8-N-1, with no flow control. The serial shell is also the log backend, avoiding
-independent shell and logging transmitters writing to the same UART. Use these
-serial settings when opening the port manually; CLI_C uses the same baud rate.
+In the HIL image, SENSOR UART0/VCOM0 is configured for 115200 baud, 8-N-1, with
+RTS/CTS hardware flow control. The serial shell is also the log backend,
+avoiding independent shell and logging transmitters writing to the same UART.
 The Audio DK board controller enables hardware flow control on VCOM0, so
 SENSOR's ``app.overlay`` and ``sysbuild/mcuboot.overlay`` set
-``hw-flow-control`` on UART0. Without it, console output loses characters.
+``hw-flow-control`` on UART0. Keep the host serial client's flow-control
+setting consistent with the VCOM0 bridge. CLI_C currently opens the port with
+PySerial's default ``rtscts=False``; see :doc:`open_items` for the ongoing
+TC-043 investigation.
 If VCOM0 output is garbled or the shell does not respond even with these
 settings, power-cycle the Audio DK (USB and power) to restore its board
 controller's serial bridge before debugging the firmware.
