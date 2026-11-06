@@ -184,8 +184,9 @@ python -m pip install -e tools/easncli
 easncli tc 1
 ```
 
-CLI_C currently exposes TC-001 through TC-013, TC-020, TC-042, TC-043, TC-046, and
-TC-048. Use the following primary commands to run suites or inspect coverage:
+CLI_C currently exposes TC-001 through TC-013, TC-020, TC-022, TC-025, TC-026,
+TC-032, TC-042, TC-043, TC-046, and TC-048. Use the following primary commands
+to run suites or inspect coverage:
 
 ```sh
 easncli tcfull
@@ -206,13 +207,14 @@ automatically selects the only serial port visible to the host; use
 Each run creates a timestamped directory containing `result.json` and device
 and CLI logs.
 
-The current bench has no external environmental sensor or SIM. TC-007 depends
-on the environmental sensor, and TC-048 needs cellular service and a SIM to
-complete UTC synchronization; both are implemented but cannot be fully verified
-on this setup. Run
-`easncli tcfull --implemented-only --no-human --no-env-sensor --no-sim` to
-exclude them. TC-048 can still be run individually, but without
-cellular service it ends inconclusively.
+The current bench has an external environmental sensor, but cellular
+registration is unavailable. TC-007, TC-025, TC-026, and TC-032 depend on the
+sensor; TC-048 needs a SIM and cellular service to complete UTC synchronization.
+Use `--no-env-sensor` on benches without the sensor and `--no-sim` without
+cellular service. TC-048 can still be run individually, but without cellular
+service it ends inconclusively. The sampling tests create retained records on
+the SD card with synthetic timestamps; see the verification chapter for their
+HIL-only overrides and limitations.
 
 Use `--pristine` when changing image types so that the previous configuration
 is removed.

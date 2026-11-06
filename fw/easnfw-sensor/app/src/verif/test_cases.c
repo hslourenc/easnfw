@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include <zephyr/fs/fs.h>
@@ -16,11 +17,22 @@
 #include <easnfw/time_sync.h>
 
 #include "test_cases.h"
+#include "cli.h"
 
 #ifdef CONFIG_EASNFW_VERIFICATION_CODE
 
 LOG_MODULE_REGISTER(test_cases, LOG_LEVEL_INF);
 static uint32_t tc042_id_counter;
+static uint32_t tc041_id_counter;
+
+struct tc062_record_counts {
+	unsigned int committed;
+	unsigned int temporary;
+	unsigned int quarantined;
+};
+
+static struct tc062_record_counts tc062_initial_counts;
+static bool tc062_initial_counts_valid;
 
 void app_test_cases__set_selftest_nvs_fault(void);
 void app_test_cases__set_selftest_mass_storage_fault(void);
@@ -239,6 +251,9 @@ void app_test_cases__tc020(unsigned int test_case_step)
 			    &failure_mask, sizeof(failure_mask));
 	if (err != 0) {
 		LOG_ERR("TCSTATUS_FAIL - failed-check mask read from NVS: %d", err);
+	} else if (faults.failure_mask_write_attempts != 1U) {
+		LOG_ERR("TCSTATUS_FAIL - expected one failure-mask write, observed %u",
+			faults.failure_mask_write_attempts);
 	} else if ((failure_mask & EASNFW_SELFTEST_FAILURE_AUDIO) == 0U) {
 		LOG_ERR("TCSTATUS_FAIL - persisted mask 0x%02x omits audio failure",
 			failure_mask);
@@ -247,6 +262,344 @@ void app_test_cases__tc020(unsigned int test_case_step)
 			failure_mask);
 	}
 	app_test_cases__clear_all_faults();
+}
+
+/** Verify no failure-mask write is attempted when the NVS self-test fails. */
+void app_test_cases__tc022(unsigned int test_case_step)
+{
+	(void)test_case_step;
+	app_test_cases__clear_all_faults();
+	app_test_cases__set_selftest_nvs_fault();
+	cli__run_production_startup(22U, K_SECONDS(60));
+}
+
+/** Observe two production sampling cycles with a short HIL interval. */
+static void run_sampling_observation(unsigned int test_case)
+{
+	int err;
+
+	app_test_cases__clear_all_faults();
+	faults.ignore_cloud_unavailable = 1;
+	faults.short_sampling_cycle = 1;
+	faults.verify_record_metadata = test_case == 32U;
+	err = app_utc_time__set(946684800000ULL);
+	if (err != 0) {
+		LOG_ERR("TCSTATUS_FAIL - could not set synthetic test UTC: %d", err);
+		return;
+	}
+	cli__run_production_startup(test_case, K_SECONDS(60));
+}
+
+void app_test_cases__tc025(unsigned int test_case_step)
+{
+	(void)test_case_step;
+	run_sampling_observation(25U);
+}
+
+void app_test_cases__tc026(unsigned int test_case_step)
+{
+	(void)test_case_step;
+	run_sampling_observation(26U);
+}
+
+void app_test_cases__tc032(unsigned int test_case_step)
+{
+	(void)test_case_step;
+	run_sampling_observation(32U);
+}
+
+static int tc062_record_counts_get(struct tc062_record_counts *counts)
+{
+	struct fs_dir_t directory;
+	struct fs_dirent entry;
+	int err;
+
+	if (counts == NULL) {
+		return -EINVAL;
+	}
+	*counts = (struct tc062_record_counts){0};
+	fs_dir_t_init(&directory);
+	err = fs_opendir(&directory, "/SD:/records");
+	if (err != 0) {
+		return err;
+	}
+	for (;;) {
+		err = fs_readdir(&directory, &entry);
+		if (err != 0 || entry.name[0] == '\0') {
+			break;
+		}
+		if (entry.type != FS_DIR_ENTRY_FILE) {
+			continue;
+		}
+		size_t const name_len = strlen(entry.name);
+
+		if (name_len >= 4U &&
+		    strcmp(&entry.name[name_len - 4U], ".rec") == 0) {
+			++counts->committed;
+		} else if (name_len >= 4U &&
+			   strcmp(&entry.name[name_len - 4U], ".tmp") == 0) {
+			++counts->temporary;
+		} else if (name_len >= 4U &&
+			   strcmp(&entry.name[name_len - 4U], ".bad") == 0) {
+			++counts->quarantined;
+		}
+	}
+	int const close_err = fs_closedir(&directory);
+
+	if (err != 0) {
+		return err;
+	}
+	return close_err;
+}
+
+/** Verify an in-progress record is unavailable until metadata is committed. */
+void app_test_cases__tc041(unsigned int test_case_step)
+{
+	static const int64_t start_utc_ms = 946684800000LL;
+	struct app_mass_storage_record_metadata metadata = {
+		.sample_rate_hz = CONFIG_EASNFW_AUDIO_SAMPLE_RATE_HZ,
+		.track_duration_seconds = 1U,
+		.total_sample_count = 4U,
+		.processing_algorithm_version = 1U,
+		.channels = 1U,
+		.bits_per_sample = 16U,
+		.schema_version = 1U,
+		.timestamp_source = APP_TIMESTAMP_SOURCE_CELLULAR_NETWORK,
+	};
+	struct app_mass_storage_record_metadata persisted;
+	struct fs_dirent entry;
+	int16_t samples[4] = {101, -202, 303, -404};
+	uint32_t id_seed[4] = {
+		sys_rand32_get(), sys_rand32_get(), ++tc041_id_counter,
+		0x54433041U,
+	};
+	char record_id_hex[33] = {0};
+	char temporary_path[80] = {0};
+	char committed_path[80] = {0};
+	uint32_t file_size;
+	bool record_open = false;
+	bool owns_paths = false;
+	int err;
+
+	(void)test_case_step;
+	app_test_cases__clear_all_faults();
+	memcpy(metadata.record_id, id_seed, sizeof(metadata.record_id));
+	err = app_utc_time__format(start_utc_ms, metadata.environment_sample_utc,
+				   sizeof(metadata.environment_sample_utc));
+	if (err == 0) {
+		err = app_utc_time__format(start_utc_ms,
+					   metadata.audio_start_utc,
+					   sizeof(metadata.audio_start_utc));
+	}
+	if (err == 0) {
+		err = app_utc_time__format(start_utc_ms + 1000,
+					   metadata.audio_end_utc,
+					   sizeof(metadata.audio_end_utc));
+	}
+	if (err == 0) {
+		err = app_mass_storage__init();
+	}
+	if (err != 0) {
+		goto fail;
+	}
+
+	for (size_t i = 0U; i < sizeof(metadata.record_id); ++i) {
+		snprintk(&record_id_hex[i * 2U],
+			 sizeof(record_id_hex) - i * 2U,
+			 "%02x", metadata.record_id[i]);
+	}
+	snprintk(committed_path, sizeof(committed_path),
+		 "/SD:/records/%s.rec", record_id_hex);
+	snprintk(temporary_path, sizeof(temporary_path),
+		 "/SD:/records/%s.tmp", record_id_hex);
+	err = fs_stat(temporary_path, &entry);
+	if (err != -ENOENT) {
+		err = err == 0 ? -EEXIST : err;
+		goto fail;
+	}
+	err = fs_stat(committed_path, &entry);
+	if (err != -ENOENT) {
+		err = err == 0 ? -EEXIST : err;
+		goto fail;
+	}
+	owns_paths = true;
+
+	err = app_mass_storage__record_begin(&metadata);
+	if (err != 0) {
+		goto fail;
+	}
+	record_open = true;
+	err = app_mass_storage__record_append(samples, sizeof(samples) / 2U);
+	if (err != 0) {
+		goto fail;
+	}
+	err = fs_stat(temporary_path, &entry);
+	if (err != 0 || entry.type != FS_DIR_ENTRY_FILE) {
+		err = err != 0 ? err : -EBADMSG;
+		goto fail;
+	}
+	err = fs_stat(committed_path, &entry);
+	if (err != -ENOENT) {
+		err = err == 0 ? -EBADMSG : err;
+		goto fail;
+	}
+	err = app_mass_storage__record_read_open(metadata.record_id, &file_size);
+	if (err != -ENOENT) {
+		if (err == 0) {
+			app_mass_storage__record_read_close();
+			err = -EBADMSG;
+		}
+		goto fail;
+	}
+
+	err = app_mass_storage__record_append(
+		(uint8_t *)samples + sizeof(samples) / 2U,
+		sizeof(samples) / 2U);
+	if (err != 0) {
+		goto fail;
+	}
+	err = app_mass_storage__record_commit(&metadata);
+	record_open = false;
+	if (err != 0) {
+		goto fail;
+	}
+	err = fs_stat(committed_path, &entry);
+	if (err != 0 || entry.type != FS_DIR_ENTRY_FILE) {
+		err = err != 0 ? err : -EBADMSG;
+		goto fail;
+	}
+	err = fs_stat(temporary_path, &entry);
+	if (err != -ENOENT) {
+		err = err == 0 ? -EBADMSG : err;
+		goto fail;
+	}
+	err = app_mass_storage__record_read_open(metadata.record_id, &file_size);
+	if (err != 0) {
+		goto fail;
+	}
+	app_mass_storage__record_read_close();
+	err = app_mass_storage__verification_read_last_metadata(
+		metadata.record_id, &persisted);
+	if (err == 0 &&
+	    (memcmp(metadata.record_id, persisted.record_id,
+		    sizeof(metadata.record_id)) != 0 ||
+	     metadata.sample_rate_hz != persisted.sample_rate_hz ||
+	     metadata.track_duration_seconds != persisted.track_duration_seconds ||
+	     metadata.temperature_milli_c != persisted.temperature_milli_c ||
+	     metadata.pressure_pa != persisted.pressure_pa ||
+	     metadata.humidity_milli_pct != persisted.humidity_milli_pct ||
+	     metadata.gas_resistance_ohms != persisted.gas_resistance_ohms ||
+	     metadata.total_sample_count != persisted.total_sample_count ||
+	     metadata.processing_algorithm_version !=
+		persisted.processing_algorithm_version ||
+	     metadata.channels != persisted.channels ||
+	     metadata.bits_per_sample != persisted.bits_per_sample ||
+	     metadata.schema_version != persisted.schema_version ||
+	     metadata.timestamp_source != persisted.timestamp_source ||
+	     strcmp(metadata.audio_start_utc, persisted.audio_start_utc) != 0 ||
+	     strcmp(metadata.audio_end_utc, persisted.audio_end_utc) != 0 ||
+	     strcmp(metadata.environment_sample_utc,
+		    persisted.environment_sample_utc) != 0 ||
+	     file_size <= sizeof(metadata))) {
+		err = -EBADMSG;
+	}
+
+fail:
+	if (record_open) {
+		int const abort_err = app_mass_storage__record_abort();
+
+		if (err == 0) {
+			err = abort_err;
+		}
+	}
+	if (owns_paths && temporary_path[0] != '\0') {
+		int const cleanup_err = fs_unlink(temporary_path);
+
+		if (cleanup_err != 0 && cleanup_err != -ENOENT && err == 0) {
+			err = cleanup_err;
+		}
+	}
+	if (owns_paths && committed_path[0] != '\0') {
+		int const cleanup_err = fs_unlink(committed_path);
+
+		if (cleanup_err != 0 && cleanup_err != -ENOENT && err == 0) {
+			err = cleanup_err;
+		}
+	}
+	if (err == 0) {
+		LOG_INF("TCSTATUS_SUCCESS - temporary record was ineligible until complete metadata was committed");
+	} else {
+		LOG_ERR("TCSTATUS_FAIL - record commit eligibility or metadata verification failed: %d",
+			err);
+	}
+}
+
+/** Verify a simulated storage shortage delays acquisition without deleting records. */
+void app_test_cases__tc062(unsigned int test_case_step)
+{
+	int err;
+
+	(void)test_case_step;
+	app_test_cases__clear_all_faults();
+	err = app_mass_storage__init();
+	if (err == 0) {
+		err = tc062_record_counts_get(&tc062_initial_counts);
+	}
+	if (err != 0) {
+		LOG_ERR("TCSTATUS_FAIL - could not snapshot mass-storage records: %d",
+			err);
+		return;
+	}
+	tc062_initial_counts_valid = true;
+	faults.ignore_cloud_unavailable = 1;
+	faults.short_sampling_cycle = 1;
+	faults.storage_space_shortage = 1;
+	faults.storage_space_shortage_checks = 2U;
+	err = app_utc_time__set(946684800000ULL);
+	if (err != 0) {
+		LOG_ERR("TCSTATUS_FAIL - could not set synthetic test UTC: %d", err);
+		return;
+	}
+	cli__run_production_startup(62U, K_SECONDS(60));
+}
+
+void app_test_cases__tc062_observation_complete(void)
+{
+	struct tc062_record_counts counts;
+	int err = tc062_initial_counts_valid
+		? tc062_record_counts_get(&counts) : -EINVAL;
+
+	if (err == 0 &&
+	    (counts.committed != tc062_initial_counts.committed + 2U ||
+	     counts.temporary != tc062_initial_counts.temporary ||
+	     counts.quarantined != tc062_initial_counts.quarantined)) {
+		err = -EIO;
+	}
+	if (err == 0) {
+		LOG_INF("HIL_RECORD_PRESERVATION_PASSED committed=%u temporary=%u quarantined=%u",
+			counts.committed, counts.temporary, counts.quarantined);
+	} else {
+		LOG_ERR("HIL_RECORD_PRESERVATION_FAILED error=%d", err);
+	}
+	tc062_initial_counts_valid = false;
+}
+
+/** Observe permanent runtime storage failure handling through diagnostic entry. */
+void app_test_cases__tc063(unsigned int test_case_step)
+{
+	int err;
+
+	(void)test_case_step;
+	app_test_cases__clear_all_faults();
+	faults.ignore_cloud_unavailable = 1;
+	faults.short_sampling_cycle = 1;
+	faults.storage_append_permanent_failures = 1U;
+	err = app_utc_time__set(946684800000ULL);
+	if (err != 0) {
+		LOG_ERR("TCSTATUS_FAIL - could not set synthetic test UTC: %d", err);
+		return;
+	}
+	cli__run_production_startup(63U, K_SECONDS(60));
 }
 
 /** Verify recovery quarantines a truncated temporary record. */
@@ -366,6 +719,10 @@ void app_test_cases__tc046(unsigned int test_case_step)
 		if (err != -ENOMEM) {
 			LOG_ERR("TCSTATUS_FAIL - pool exhaustion returned %d, expected %d",
 				err, -ENOMEM);
+			if (err == 0) {
+				easnfw_pipeline_message_free(extra);
+				err = -EIO;
+			}
 		} else {
 			err = 0;
 		}

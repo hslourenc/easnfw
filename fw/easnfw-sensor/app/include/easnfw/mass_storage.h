@@ -99,4 +99,13 @@ int app_mass_storage__record_read(uint32_t offset, void *data, size_t len);
 /** @brief Close the record opened for reading. */
 void app_mass_storage__record_read_close(void);
 
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+/** Validate and read the metadata of the most recently committed record. */
+int app_mass_storage__verification_read_last_metadata(
+	const uint8_t record_id[16], struct app_mass_storage_record_metadata *metadata);
+/** Verify an interrupted record is retained as a temporary, not committed file. */
+int app_mass_storage__verification_record_is_temporary(
+	const uint8_t record_id[16]);
+#endif
+
 #endif

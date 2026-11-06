@@ -55,6 +55,37 @@ For test cases, specifically, this is the flow:
 
 Test case status log format: `TCSTATUS_<STATUS> - <INFO>`.
 
+For production-startup observation cases, CLI_H first injects the required
+faults, starts an independent watchdog, and runs ``main_continue()`` on a
+separate thread so the shell can continue delivering logs. The watchdog
+requests a coordinated CLOUD and SENSOR reset after the observation period.
+CLI_C evaluates the case-specific observations and requires both the watchdog
+and CLOUD-reset markers followed by ``TCSTATUS_RESETDONE``; CLI_H does not
+emit a terminal test result for this path. If coordination fails, CLI_H logs
+the failure and resets SENSOR for recovery; CLI_C must not report a pass.
+Missing observations, an unexpected reset, or a host timeout are failures.
+TC-022 waits for diagnostic-state entry; TC-025, TC-026, and TC-032 wait for
+two records to be committed and queued. TC-062 waits through two injected
+``-ENOSPC`` preflight results, then verifies two records commit and the
+pre-existing temporary and quarantined counts remain unchanged. TC-063
+observes a permanent storage-write failure, retained temporary record, and
+diagnostic-state entry;
+it is partial because the diagnostic cloud payload and FUOTA cycle are not
+implemented. A 60-second watchdog deadline covers startup and observation,
+then resets both boards even if the event is missing.
+For these sampling tests, the real
+cloud self-test runs but its specific unavailable
+result is dismissed because cloud availability is outside the test objective.
+Other self-test failures remain failures, and MCUboot image confirmation is
+skipped when this override is enabled. A synthetic UTC anchor replaces cellular
+time; these tests do not verify time synchronization. Production sampling uses
+one-second tracks and a two-second interval for these tests only. Records
+created by them remain on the SD card, including if transfer fails. Their
+timestamps are synthetic even though the production record metadata identifies
+the timestamp source as cellular. Cloud transmission is disabled for these
+tests so synthetic records are not sent; they still reach the storage-to-cloud
+queue. The records must not be mistaken for production observations.
+
 * `<STATUS>`: 
 
    * `FAIL`: test case failed.
@@ -168,18 +199,20 @@ Description
 ^^^^^^^^^^^
 
 Executes all test cases currently exposed by CLI_H: TC-001 through TC-013,
-TC-020, TC-042, TC-043, TC-046, and TC-048.
+TC-020, TC-022, TC-025, TC-026, TC-032, TC-041, TC-042, TC-043, TC-046,
+TC-048, TC-062, and TC-063.
 
 Options
 ^^^^^^^
 
 * ``--implemented-only`` excludes test cases whose firmware or test is only
   partially implemented; these count as not fully implemented. This currently
-  excludes TC-005, TC-011, and TC-013.
+  excludes TC-011, TC-013, and TC-063.
 * ``--no-human`` excludes test cases that require a person to verify sensor
   behavior or physical connections. This currently excludes no test cases.
 * ``--no-env-sensor`` excludes test cases that require the external
-  environmental sensor. This currently excludes TC-007.
+  environmental sensor. This currently excludes TC-007, TC-025, TC-026,
+  TC-032, TC-062, and TC-063.
 * ``--no-sim`` excludes test cases that require a SIM and cellular service.
   This currently excludes TC-048.
 
@@ -286,14 +319,19 @@ HIL Verification Image Test Cases
 
 Since the HIL verification image does not execute business logic automatically
 out of reset, but instead exposes a command line interface (CLI) over USB that
-triggers specific code paths on demand, each test case below assumes it is
-driven by a host PC issuing CLI commands to EASNFW-SENSOR.
+triggers specific code paths on demand, a host PC can drive implemented tests
+through CLI_C and CLI_H. The procedures below specify the actions and checks
+the tests must perform; they do not depend on a particular invocation command.
 
-The current HIL CLI exposes TC-001 through TC-013, TC-020, TC-042, TC-043, TC-046, and
-TC-048. TC-005 and TC-007 only verify that sensor data can be read; they do
-not check physical signal accuracy or configured sensor behavior. TC-011 is deliberately inconclusive until a cloud backend
-contract exists, and TC-013 therefore remains partial; partial cases count as
-not implemented. TC-007 is completely implemented but requires the external
+The current HIL CLI exposes TC-001 through TC-013, TC-020, TC-022, TC-025,
+TC-026, TC-032, TC-041 through TC-043, TC-046, TC-048, and TC-062 through
+TC-063. TC-005 and TC-007 only verify that sensor data can be read; they do
+not check physical signal accuracy or configured sensor behavior. TC-011 is
+deliberately inconclusive until a cloud backend
+contract exists, and TC-013 therefore remains partial. TC-063 is partial
+because transient storage retry policy is unspecified and diagnostic cloud
+payload/FUOTA behavior has no implementation. TC-007, TC-025, TC-026, TC-032,
+TC-062, and TC-063 require the external
 environmental sensor to be connected, and TC-048 is completely implemented but
 requires cellular service and a SIM to complete (without them it reports an
 inconclusive result). Use ``--no-env-sensor`` and ``--no-sim`` on benches
@@ -306,6 +344,160 @@ automated by the firmware CLI; do not interpret their presence here as evidence
 that the corresponding production behavior has been implemented.
 Coverage for remaining storage, cloud-delivery, scheduling, diagnostics, and
 FUOTA procedures is listed in :doc:`open_items` and by ``easncli cases``.
+
+Test case implementation and dependencies
+-----------------------------------------
+
+The table classifies every specified test case. **Complete** means CLI_H
+implements the stated automated check, not that every related physical or
+end-to-end behavior has been verified. **Partial** means CLI_H exposes the
+case but its automated coverage is incomplete. **Not implemented** means CLI_H
+does not expose it. The catalog also lists non-applicable cases as not fully
+implemented; TC-055 and TC-056 are identified separately here.
+
+The dependency tags describe the specified test or a noted additional check:
+
+* **Bench:** additional equipment or control beyond the usual boards, host,
+  microphone, SD card, and inter-board connections.
+* **Cloud:** a defined cloud contract and corresponding service or test
+  double. It does not imply a real backend is always necessary.
+* **Environment:** the environmental sensor.
+* **SIM:** a working SIM and cellular time service.
+* **Algorithm:** the audio processing algorithm and its parameters must be
+  specified. **N/A:** no recoverable-by-reset fault is currently specified.
+
+A dash means no case-specific dependency in these categories is identified;
+it does not mean that the necessary firmware or HIL hooks already exist.
+These tags describe the full specification, including future tests, whereas
+``--no-env-sensor`` and ``--no-sim`` filter only the currently exposed HIL
+cases listed in the command documentation above. Production-image acquisition
+also waits for cellular UTC: tests exercising it need working cellular time
+or a controlled time source. The SIM tag identifies
+cases that explicitly test cellular time, not every case that may use it.
+
+.. list-table:: HIL test case status and dependencies
+   :header-rows: 1
+   :class: longtable
+   :widths: 28 24 48
+
+   * - Test cases
+     - HIL status
+     - Dependencies and limits
+   * - TC-001--006
+     - Complete
+     - TC-005 checks block acquisition, not physical signal accuracy.
+   * - TC-007
+     - Complete
+     - Environment.
+   * - TC-008--010, TC-012
+     - Complete
+     - No additional dependency.
+   * - TC-011
+     - Partial
+     - Cloud.
+   * - TC-013
+     - Partial
+     - Cloud, environment.
+   * - TC-014--019
+     - Not implemented
+     - Cloud.
+   * - TC-020
+     - Complete
+     - Cloud for the separate power-on-log ordering check.
+   * - TC-021
+     - Not implemented
+     - Cloud.
+   * - TC-022
+     - Complete
+     - Production startup is observed through its watchdog reset.
+   * - TC-023
+     - Not implemented
+     - Cloud for power-on-log transmission behavior.
+   * - TC-025
+     - Complete
+     - Environment.
+   * - TC-026
+     - Complete
+     - Environment.
+   * - TC-027--028
+     - Not implemented
+     - Bench: controlled audio signal and capture/analysis.
+   * - TC-029
+     - Not implemented
+     - Algorithm.
+   * - TC-030--031
+     - Not implemented
+     - Algorithm.
+   * - TC-032
+     - Complete
+     - Environment.
+   * - TC-033--039
+     - Not implemented
+     - Cloud.
+   * - TC-040
+     - Not implemented
+     - Bench: calibrated power profiler; cloud for a real transmission cycle.
+   * - TC-041
+     - Complete
+     - CLI_H verifies temporary-record ineligibility, atomic commit,
+       transmission eligibility, and final metadata.
+   * - TC-042
+     - Complete
+     - Bench for the separate physical power-interruption check.
+   * - TC-043
+     - Complete
+     - CRC and protocol checks; no byte-for-byte comparison.
+   * - TC-044--045
+     - Not implemented
+     - Cloud for the full delivery and acknowledgement behavior.
+   * - TC-046
+     - Complete
+     - Pool exhaustion and reuse; sustained-load behavior is separate.
+   * - TC-047
+     - Not implemented
+     - Bench: controlled audio signal and capture/analysis.
+   * - TC-048
+     - Complete
+     - SIM; the production-image end-to-end check remains separate.
+   * - TC-049--051, TC-053--054
+     - Not implemented
+     - Cloud and FUOTA implementation.
+   * - TC-055--056
+     - Not applicable
+     - N/A.
+   * - TC-057
+     - Not implemented
+     - Cloud for power-on-log scheduling.
+   * - TC-058--059
+     - Not implemented
+     - Cloud for FUOTA or diagnostic payload behavior.
+   * - TC-060
+     - Not implemented
+     - Bench: independent LED observation or measurement.
+   * - TC-061
+     - Not implemented
+     - Production acquisition-versus-transmission/FUOTA arbitration and its
+       scheduling contract are not implemented.
+   * - TC-062
+     - Complete (simulated ENOSPC)
+     - CLI_H injects a shortage before writes; it does not fill the physical
+       card. The committed count grows by two new records, while temporary and
+       quarantined counts remain unchanged.
+   * - TC-063
+     - Partially implemented
+     - Permanent runtime failures now retain the temporary record, persist
+       diagnostic context, stop acquisition, and enter the existing LED state.
+       REQ-036's retry policy remains a placeholder, and REQ-027's diagnostic
+       cloud payload and FUOTA cycle have no implementation.
+   * - TC-064--065
+     - Not implemented
+     - Cloud.
+   * - TC-066
+     - Not implemented
+     - Cloud for the specified transmission cycle.
+   * - TC-067--068
+     - Not implemented
+     - Cloud.
 
 HIL hardware bring-up
 ---------------------
@@ -451,7 +643,10 @@ The external I2S microphone is connected and operational.
 Procedure
 """""""""
 
-#. Run ``easncli tc 5``.
+#. Clear any injected self-test faults.
+#. Run the audio self-test, starting I2S and acquiring a mono PCM16 block at
+   the configured sample rate.
+#. Check the self-test result and the acquired block.
 
 Expected results
 """"""""""""""""
@@ -476,8 +671,8 @@ None.
 Procedure
 """""""""
 
-#. Run ``easncli tc 6``; the HIL test injects a failure in the audio
-   self-test path.
+#. Clear any injected self-test faults and inject an audio acquisition fault.
+#. Run the audio self-test and check its return status.
 
 Expected results
 """"""""""""""""
@@ -502,7 +697,10 @@ The external sensor is connected to I2C1 at the configured address.
 Procedure
 """""""""
 
-#. Run ``easncli tc 7``.
+#. Clear any injected self-test faults.
+#. Run the environmental self-test to acquire a fresh sample.
+#. Check the result for temperature, pressure, relative humidity, and gas
+   resistance.
 
 Expected results
 """"""""""""""""
@@ -532,8 +730,9 @@ None.
 Procedure
 """""""""
 
-#. Run ``easncli tc 8``; the HIL test injects a failure in the environmental
-   self-test path.
+#. Clear any injected self-test faults and inject an environmental acquisition
+   fault.
+#. Run the environmental self-test and check its return status.
 
 Expected results
 """"""""""""""""
@@ -559,7 +758,9 @@ wiring in :doc:`interfw_link`.
 Procedure
 """""""""
 
-#. Run ``easncli tc 9``.
+#. Clear any injected self-test faults.
+#. Run the inter-firmware link self-test, sending a PING to EASNFW-CLOUD.
+#. Check the acknowledgement and the self-test return status.
 
 Expected results
 """"""""""""""""
@@ -583,8 +784,9 @@ None.
 Procedure
 """""""""
 
-#. Run ``easncli tc 10``; the HIL test injects a PING failure without changing
-   the physical UART wiring.
+#. Clear any injected self-test faults and inject an inter-firmware link
+   failure without changing the physical UART wiring.
+#. Run the inter-firmware link self-test and check its return status.
 
 Expected results
 """"""""""""""""
@@ -608,7 +810,10 @@ durable-commit acknowledgement is required.
 Procedure
 """""""""
 
-#. Run ``easncli tc 11``.
+#. Run the cloud platform self-test with no injected fault.
+#. Check whether an authenticated transmission receives a durable-commit
+   acknowledgement. Until the backend contract is available, check that the
+   self-test reports the service as unavailable instead of reporting success.
 
 Expected results
 """"""""""""""""
@@ -639,7 +844,8 @@ None.
 Procedure
 """""""""
 
-#. Run ``easncli tc 12``; HIL injects an unavailable-cloud result.
+#. Clear any injected self-test faults and inject an unavailable-cloud result.
+#. Run the cloud platform self-test and check its return status.
 
 Expected results
 """"""""""""""""
@@ -665,8 +871,9 @@ functional. The cloud check remains unavailable until the backend is defined.
 Procedure
 """""""""
 
-#. Run ``easncli tc 13``.
-#. Inspect the USB output for a result line for each check.
+#. Clear any injected self-test faults and run the complete self-test sequence.
+#. Check the individual outcomes for NVS, mass storage, audio, environment,
+   inter-firmware link, and cloud platform, and check the aggregate result.
 
 Expected results
 """"""""""""""""
@@ -674,10 +881,6 @@ Expected results
 * All six checks are attempted and their individual outcomes are logged.
 * The result is inconclusive only because the cloud backend check cannot yet
   be completed; a failure in any other check reports ``TCSTATUS_FAIL``.
-* ``easncli tcfull`` runs all cases exposed by CLI_H. Use
-  ``--implemented-only``, ``--no-human``, ``--no-env-sensor``, and
-  ``--no-sim`` to exclude cases by implementation status or bench
-  requirements.
 
 REQ-024: Power-On Log Payload Transmission
 ------------------------------------------
@@ -903,16 +1106,18 @@ TC-020: Failed checks are stored to NVS
 Objective
 """""""""
 
-Verify that, after the power-on log payload step, the set of
-failed self-test checks is written to NVS.
+Verify that the failed self-test checks are written to NVS. Verification of
+their ordering relative to the power-on log payload remains pending.
 
 Procedure
 """""""""
 
 
-1. Run ``easncli tc 20``. The HIL procedure injects an audio self-test failure
-   and runs the self-test sequence.
-2. The firmware reads the resulting failed-check mask back from NVS.
+1. Clear any injected self-test faults, inject an audio self-test failure,
+   and run the full self-test sequence.
+2. Read the resulting failed-check mask from NVS and check the audio failure
+   bit.
+3. Clear the injected fault.
 
 Expected results
 """"""""""""""""
@@ -963,16 +1168,18 @@ Procedure
 """""""""
 
 
-1. Fault NVS.
-2. Trigger the full self-test sequence and observe the returned result and USB
-   logs.
+1. Clear injected faults and enable the NVS self-test read/write mismatch fault.
+2. Run production startup and count attempts to write the self-test
+   failure-mask NVS entry.
+3. Observe the self-test result and diagnostic-state entry, then allow the
+   watchdog to reset both boards.
 
 Expected results
 """"""""""""""""
 
-No attempt to write the failed-checks record to NVS
-is logged; the component handles the NVS failure according to its reset or
-degraded-state policy.
+The sequence reports the injected NVS mismatch, does not attempt to write the
+failed-checks record to NVS, and enters diagnostic state with the NVS error.
+CLI_C confirms the coordinated watchdog reset before reporting success.
 
 TC-023: Connectivity failure enters diagnostic state
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1084,17 +1291,20 @@ Procedure
 """""""""
 
 
-1. Configure a short test value for ``PARAM_INTER_TRACK_INTERVAL`` and
-   ``PARAM_TRACK_LEN`` via the CLI.
-2. Let two consecutive tracks be sampled.
-3. Measure the elapsed time between the end-of-sampling timestamp of
-   track 1 and the start-of-sampling timestamp of track 2.
+1. Run production startup with the HIL-only cloud-unavailable override and
+   synthetic UTC described above, and use one-second tracks and a two-second
+   inter-track interval.
+2. Observe two consecutive tracks and measure monotonic uptime at the first
+   track's end and the second track's start.
+3. Require the coordinated watchdog reset to finish, and reject incomplete
+   tracks or fatal errors.
 
 Expected results
 """"""""""""""""
 
-The measured interval is ``PARAM_INTER_TRACK_INTERVAL``
-seconds.
+The measured interval is between 2000 and 4000 ms inclusive. The upper bound
+allows time for stopping and restarting the sampling hardware and acquisition
+setup; the test does not check the production-configured interval value.
 
 REQ-030: Data Acquisition Cycle Priority
 ----------------------------------------
@@ -1107,6 +1317,13 @@ Objective
 
 Verify that data-acquisition actions take priority when another
 requirement schedules a conflicting action.
+
+Implementation status
+"""""""""""""""""""""
+
+Not implemented. The current firmware has no scheduler or arbitration
+contract for acquisition versus transmission/FUOTA actions. Adding a test-only
+ordering would not verify production behavior.
 
 Procedure
 """""""""
@@ -1139,16 +1356,27 @@ Procedure
 """""""""
 
 
-1. Trigger a single track's sampling.
-2. Inspect the CLI/log output for the captured environmental sample and
-   the two timestamps.
+1. Run production startup with the HIL-only cloud-unavailable override,
+   synthetic UTC, and short sampling cycle described above.
+2. Observe the first track's environmental acquisition and the timestamps
+   assigned to its sampling metadata.
+3. Check that the coordinated watchdog reset completes.
 
 Expected results
 """"""""""""""""
 
-Exactly one temperature, humidity, pressure, and VOCs
-sample is captured; a start timestamp is captured before audio sampling begins
-and an end timestamp after it ends, with end greater than start.
+Exactly one sample of temperature, humidity, pressure, and VOCs is captured;
+the environmental timestamp is no later than the audio start timestamp, and
+the audio end timestamp is later than the start timestamp.
+
+CLI_H coverage
+""""""""""""""
+
+The automated check observes one acquisition of temperature, humidity,
+pressure, and gas resistance and verifies the timestamp ordering. As specified
+in :doc:`open_items`, gas resistance is the VOC-related quantity recorded by
+the firmware; it is not a calibrated VOC concentration. Physical measurement
+accuracy is not checked.
 
 REQ-031: Audio Data Acquisition
 -------------------------------
@@ -1298,9 +1526,13 @@ Procedure
 """""""""
 
 
-1. Trigger sampling and processing of a full track.
-2. After the last block is processed, inspect mass storage for the
-   environmental data and timestamp entries associated with the track.
+1. Run production startup with the HIL-only cloud-unavailable override,
+   synthetic UTC, and short sampling cycle described above.
+2. Observe the first track's environmental sample and timestamps.
+3. After the track is processed and committed, read its record from mass
+   storage, validate its structure and CRCs, and compare the stored metadata
+   with the observed values and timestamps.
+4. Require the coordinated watchdog reset to finish.
 
 Expected results
 """"""""""""""""
@@ -1308,6 +1540,12 @@ Expected results
 The persisted entry's environmental values and
 timestamps match those captured during REQ-029's sampling step for the
 same track.
+
+CLI_H coverage
+""""""""""""""
+
+The automated check compares the stored temperature, humidity, pressure, gas
+resistance, and timestamps with the values observed during acquisition.
 
 Ecoacoustic Record Transmission Scheduling
 ------------------------------------------
@@ -1403,20 +1641,37 @@ Objective
 
 Verify that storage exhaustion does not cause silent data loss.
 
+CLI_H coverage
+""""""""""""""
+
+The automated HIL check does not fill the SD card. It snapshots the counts of
+committed, temporary, and quarantined records, injects two ``-ENOSPC`` results
+from the production capacity preflight, and runs two short production
+acquisition cycles with cloud transmission disabled. It then verifies both
+records committed, the committed count increased by exactly two, and the
+pre-existing temporary and quarantined counts did not change. No existing SD
+file is overwritten or removed by the injected fault.
+
 Procedure
 """""""""
 
 
-1. Fill mass storage with undelivered records and incomplete records until
-   permitted delivered-record removal cannot provide sufficient space.
-2. Start the next scheduled acquisition.
-3. Inspect the record states and the system logs.
+1. For the deterministic HIL check, use the injected capacity-preflight
+   shortage described above.
+2. Observe that acquisition waits until the next preflight succeeds.
+3. Inspect the newly committed records and compare existing record-state
+   counts.
+
+For a physical exhaustion experiment, use a sacrificial SD card only; do not
+fill or modify a card containing user data.
 
 Expected results
 """"""""""""""""
 
-The data-acquisition cycle waits until sufficient space
-is available. Incomplete and undelivered records remain preserved.
+The data-acquisition cycle waits until sufficient space is available. The
+deterministic HIL check verifies the existing committed, temporary, and
+quarantined record counts are preserved; it simulates ``-ENOSPC`` without
+consuming or deleting SD contents.
 
 REQ-036: Run-time Mass Storage Access Failure
 ---------------------------------------------
@@ -1430,20 +1685,33 @@ Objective
 Verify that a permanent runtime mass-storage access failure
 enters diagnostic state.
 
+CLI_H coverage
+""""""""""""""
+
+The HIL image injects ``-EIO`` before an audio block is written. It verifies
+that the incomplete ``.tmp`` record remains, its ``record_id`` is persisted
+with the diagnostic reason, acquisition is asked to stop, and diagnostic
+state is entered. This coverage is partial: REQ-027 also requires a diagnostic
+cloud payload and a FUOTA cycle, neither of which currently has an
+implementation. REQ-036 explicitly leaves transient-error classification and
+retry policy unspecified, so this test does not invent or claim that policy.
+
 Procedure
 """""""""
 
 
-1. Start a data-acquisition cycle with mass storage operating normally.
-2. Inject a mass-storage access failure during the cycle.
-3. Observe the storage result and system state.
+1. Start a production data-acquisition cycle with mass storage operating
+   normally.
+2. Inject a permanent failure before a processed block is written.
+3. Observe record retention, diagnostic reason persistence, acquisition stop,
+   diagnostic-state entry, and the coordinated watchdog reset.
 
 Expected results
 """"""""""""""""
 
-The failed operation is retried when classified as
-transient. For a permanent failure, the device enters diagnostic state and
-does not silently discard the affected data.
+The injected permanent failure enters diagnostic state without deleting the
+affected temporary record. Transient retry behavior remains unspecified by
+REQ-036 and is not verified by this case.
 
 REQ-037: Payload Transmission Error Handling
 --------------------------------------------
@@ -1665,13 +1933,23 @@ Objective
 Verify that a record becomes eligible for transmission only
 after all expected blocks and metadata are persisted and validated.
 
+CLI_H coverage
+""""""""""""""
+
+The automated check writes a uniquely named record in two fragments. Before
+the second fragment and finalization, it verifies the record is ``.tmp`` and
+cannot be opened through the transmission reader. After finalization, it
+verifies the ``.rec`` rename, successful reader eligibility, record integrity,
+unique identifier, and persisted metadata, then removes only its own test
+files.
+
 Procedure
 """""""""
 
 
-1. Trigger acquisition and processing of one track.
-2. Inspect mass storage while blocks are being appended.
-3. Inspect the record again after the final block and metadata are written.
+1. Run the deterministic CLI_H record-write check.
+2. Inspect the temporary record while only part of its audio data is appended.
+3. Inspect the record after the final data and metadata are written.
 
 Expected results
 """"""""""""""""
@@ -1684,13 +1962,20 @@ processing versions.
 TC-042: Interrupted record remains recoverable but is not transmitted
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Objective
+"""""""""
+
+Verify that an interrupted record is recovered or quarantined without being
+treated as complete or transmitted.
+
 CLI_H coverage
 """"""""""""""
 
-``easncli tc 42`` creates a uniquely named truncated temporary record on the
-mounted SD card, invokes the same recovery scan used at startup, and verifies
-that the file was quarantined as ``.bad`` rather than promoted to ``.rec``.
-This deterministic check exercises recovery policy without cutting power.
+The automated HIL check creates a uniquely named truncated temporary record on
+the mounted SD card, invokes the same recovery scan used at startup, and
+verifies that the file was quarantined as ``.bad`` rather than promoted to
+``.rec``. This deterministic check exercises recovery policy without cutting
+power.
 
 Procedure
 """""""""
@@ -1713,33 +1998,48 @@ Inter-component Transfer Integrity
 TC-043: Multi-frame record is reassembled correctly
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Objective
+"""""""""
+
+Verify that a multi-frame record is accepted only after ordered reassembly and
+integrity checks on EASNFW-CLOUD.
+
 CLI_H coverage
 """"""""""""""
 
-``easncli tc 43`` commits a synthetic record of 4000 PCM16 samples (about four
-fragments) to the SD card and streams it with ``cloud_link__record_send()``.
-EASNFW-CLOUD accepts the transfer only after every fragment is in sequence, the
-CRC-32 trailer over the whole record file matches, and ``record_id`` is
-readable at its fixed offset, so a successful final acknowledgement proves the
-reassembled bytes equal the committed file. The record uses a fixed synthetic
-UTC interval, so the case needs EASNFW-CLOUD but no SIM or cloud backend.
+The automated HIL check commits a synthetic record of 4000 PCM16 samples (about
+four fragments) to the SD card and streams it with
+``cloud_link__record_send()``. EASNFW-CLOUD accepts the transfer only after
+every fragment is in sequence, the CRC-32 trailer over the whole record file
+matches, and ``record_id`` is readable at its fixed offset. The final
+acknowledgement confirms those checks. Direct comparison of the reassembled
+record with the source was not implemented because it would be too complex;
+these checks are the acceptance criterion for this test. The record uses a
+fixed synthetic UTC interval, so the case needs EASNFW-CLOUD but no SIM or
+cloud backend.
 
 Procedure
 """""""""
 
-Transfer a record larger than one UART frame and compare the
-reassembled bytes and metadata on EASNFW-CLOUD with the committed source
-record.
+Commit a synthetic record larger than one UART frame and transfer it to
+EASNFW-CLOUD. Check the fragment acknowledgements and the final acknowledgement
+after CLOUD validates fragment order, the record CRC, and its record ID.
 
 Expected results
 """"""""""""""""
 
-All fragments are transferred in a bounded-memory manner,
-the reassembled record is byte-for-byte equivalent to the source, and every
-fragment receives a link acknowledgement.
+All fragments receive a link acknowledgement and the final acknowledgement
+confirms successful reassembly and the record integrity checks. CRC validation
+provides error detection, not a byte-for-byte comparison.
 
 TC-044: Corrupted or missing UART fragment is rejected
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Objective
+"""""""""
+
+Verify that corrupted, missing, out-of-order, or unsupported transfer fragments
+are rejected rather than accepted as a valid complete record.
 
 Procedure
 """""""""
@@ -1756,6 +2056,12 @@ successful link acknowledgement for the affected fragment or record.
 
 TC-067: Lost link acknowledgement permits retransmission
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Objective
+"""""""""
+
+Verify that a lost link acknowledgement permits retransmission without
+duplicating the cloud record or prematurely marking it delivered.
 
 Procedure
 """""""""
@@ -1779,6 +2085,12 @@ Idempotent Cloud Delivery
 TC-045: Retransmission does not duplicate a cloud record
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Objective
+"""""""""
+
+Verify that retransmitting a record after a lost cloud acknowledgement does
+not create a duplicate and allows delivery to be confirmed.
+
 Procedure
 """""""""
 
@@ -1797,13 +2109,19 @@ is subsequently marked delivered.
 Buffer Ownership and Backpressure
 ---------------------------------
 
-TC-046: Slow processing applies the defined backpressure policy
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-046: Pipeline pool exhaustion is bounded and blocks are reusable
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Objective
+"""""""""
+
+Verify that the bounded pipeline pool rejects allocation when exhausted and
+that released blocks can be allocated again.
 
 CLI_H coverage
 """"""""""""""
 
-``easncli tc 46`` acquires every entry in the fixed eight-message pipeline
+The automated HIL check acquires every entry in the fixed eight-message pipeline
 pool, verifies that the next allocation fails with ``-ENOMEM``, releases all
 entries, and verifies that a released entry can be allocated again. This
 deterministically validates the bounded resource limit; it does not replace
@@ -1813,20 +2131,24 @@ abort under sustained load.
 Procedure
 """""""""
 
-Artificially delay the Processing and Storage threads until all eight
-pipeline-pool blocks are occupied while a track is being acquired. The
-deterministic HIL pool exhaustion check may be run first.
+Allocate all eight pipeline-pool blocks, attempt one additional allocation,
+release the allocated blocks, and attempt another allocation.
 
 Expected results
 """"""""""""""""
 
-No buffer is reused while owned by another stage. Acquisition stops when the
-pool is exhausted, the incomplete track is aborted, and no record for that
-track is committed. Logs identify the resource exhaustion; no partial audio
-record is presented as complete.
+All eight allocations succeed; the next allocation fails with ``-ENOMEM``.
+After release, a block can be allocated again. Sustained-load track abortion
+and processing/storage latency require separate verification.
 
 TC-047: SD writes do not introduce silent audio gaps
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Objective
+"""""""""
+
+Verify that SD write latency does not silently introduce missing, duplicated,
+or reordered audio samples.
 
 Procedure
 """""""""
@@ -1845,12 +2167,19 @@ flagged rather than silently accepted.
 TC-048: Acquisition waits until UTC synchronization succeeds
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Objective
+"""""""""
+
+Verify that acquisition waits for valid UTC while synchronization retries
+through a temporary outage.
+
 CLI_H coverage
 """"""""""""""
 
-``easncli tc 48`` simulates a network outage: it invalidates the UTC anchor and
-makes SENSOR ignore UTC responses from EASNFW-CLOUD for five seconds. It then
-runs the same ``app_utc_time__acquire()`` loop used at production startup and
+The automated HIL check simulates a network outage: it invalidates the UTC
+anchor and makes SENSOR ignore UTC responses from EASNFW-CLOUD for five
+seconds. It then runs the same ``app_utc_time__acquire()`` loop used at
+production startup and
 verifies that UTC was inaccessible (``-ENODATA``) during the outage, that
 acquisition kept retrying (at least two requests) and ended only after the
 outage, and that the restored time advances monotonically and formats as
@@ -1931,6 +2260,12 @@ checked without resuming normal data acquisition.
 TC-050: No firmware update is attempted when no newer version is available
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Objective
+"""""""""
+
+Verify that a firmware availability check does not initiate an update when no
+newer version is available.
+
 Procedure
 """""""""
 
@@ -1948,6 +2283,12 @@ or install firmware, and starts the next recording cycle normally.
 
 TC-051: Latest available firmware version is installed
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Objective
+"""""""""
+
+Verify that the latest compatible versions are installed on both components
+after the current recording cycle completes.
 
 Procedure
 """""""""
@@ -1978,6 +2319,12 @@ REQ-022: FUOTA Rollback
 TC-053: Unsigned firmware image triggers rollback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Objective
+"""""""""
+
+Verify that an unsigned update image is rejected and the previously known good
+firmware remains available.
+
 Procedure
 """""""""
 
@@ -1996,6 +2343,12 @@ previously known good versions and records the signature-validation failure.
 
 TC-054: Firmware image signed with the wrong key triggers rollback
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Objective
+"""""""""
+
+Verify that an update signed with an untrusted key is rejected and the
+previously known good firmware remains available.
 
 Procedure
 """""""""
@@ -2019,6 +2372,12 @@ Recovery Reset Behavior
 
 TC-055: Recovery resets are bounded and persisted
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Objective
+"""""""""
+
+Verify that recovery resets are counted persistently and bounded within the
+configured window when a recoverable-by-reset fault is defined.
 
 .. warning::
 
@@ -2048,6 +2407,12 @@ REQ-028: Recovery Reset Counter Clearing
 
 TC-056: Recovery-reset counter clears after stable operation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Objective
+"""""""""
+
+Verify that the recovery-reset counter clears after the configured stable
+operation window when a recoverable-by-reset fault is defined.
 
 .. warning::
 

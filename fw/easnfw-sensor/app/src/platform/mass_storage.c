@@ -14,6 +14,10 @@
 #include <easnfw/nvs.h>
 #include "../../../../shared/interfw_link_protocol.h"
 
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+#include "../verif/test_cases.h"
+#endif
+
 LOG_MODULE_REGISTER(mass_storage, LOG_LEVEL_INF);
 
 #define DISK_NAME "SD"
@@ -205,6 +209,15 @@ int app_mass_storage__has_space(uint64_t required_bytes)
 	if (!mass_storage_initialized) {
 		return -ENODEV;
 	}
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	if (faults.storage_space_shortage != 0 &&
+	    faults.storage_space_shortage_checks > 0U) {
+		--faults.storage_space_shortage_checks;
+		LOG_WRN("HIL_STORAGE_SPACE_REJECTED remaining=%u",
+			faults.storage_space_shortage_checks);
+		return -ENOSPC;
+	}
+#endif
 	err = fs_statvfs(MOUNT_POINT, &stats);
 	if (err != 0) {
 		LOG_ERR("Could not query SD free space: %d", err);
@@ -473,6 +486,13 @@ int app_mass_storage__record_append(const void *data, size_t len)
 	if (!record_open || data == NULL || len == 0U) {
 		return -EINVAL;
 	}
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	if (faults.storage_append_permanent_failures > 0U) {
+		--faults.storage_append_permanent_failures;
+		LOG_ERR("HIL_STORAGE_PERMANENT_FAILURE_INJECTED error=%d", -EIO);
+		return -EIO;
+	}
+#endif
 	if (len > UINT32_MAX - active_record_audio_bytes) {
 		return -EFBIG;
 	}
@@ -634,3 +654,63 @@ void app_mass_storage__record_read_close(void)
 		reader_open = false;
 	}
 }
+
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+int app_mass_storage__verification_read_last_metadata(
+	const uint8_t record_id[16], struct app_mass_storage_record_metadata *metadata)
+{
+	struct record_file_header header;
+	struct fs_file_t file;
+	int err = record_file_validate(active_record_committed_path);
+
+	if (err != 0) {
+		return err;
+	}
+	fs_file_t_init(&file);
+	err = fs_open(&file, active_record_committed_path, FS_O_READ);
+	if (err != 0) {
+		return err;
+	}
+	err = record_read_exact(&file, &header, sizeof(header));
+	if (fs_close(&file) != 0 && err == 0) {
+		err = -EIO;
+	}
+	if (err == 0 && memcmp(header.metadata.record_id, record_id, 16U) != 0) {
+		err = -EBADMSG;
+	}
+	if (err == 0 &&
+	    (memchr(header.metadata.environment_sample_utc, '\0',
+		    sizeof(header.metadata.environment_sample_utc)) == NULL ||
+	     memchr(header.metadata.audio_start_utc, '\0',
+		    sizeof(header.metadata.audio_start_utc)) == NULL ||
+	     memchr(header.metadata.audio_end_utc, '\0',
+		    sizeof(header.metadata.audio_end_utc)) == NULL)) {
+		err = -EBADMSG;
+	}
+	if (err == 0) {
+		*metadata = header.metadata;
+	}
+	return err;
+}
+
+int app_mass_storage__verification_record_is_temporary(
+	const uint8_t record_id[16])
+{
+	struct fs_dirent entry;
+
+	if (record_id == NULL) {
+		return -EINVAL;
+	}
+	record_paths_set(record_id);
+	int err = fs_stat(active_record_temporary_path, &entry);
+
+	if (err != 0 || entry.type != FS_DIR_ENTRY_FILE) {
+		return err != 0 ? err : -EBADMSG;
+	}
+	err = fs_stat(active_record_committed_path, &entry);
+	if (err == 0) {
+		return -EBADMSG;
+	}
+	return err == -ENOENT ? 0 : err;
+}
+#endif

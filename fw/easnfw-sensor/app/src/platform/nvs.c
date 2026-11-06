@@ -7,6 +7,10 @@
 #include <zephyr/kvss/nvs.h>
 #include <easnfw/nvs.h>
 
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+#include "../verif/test_cases.h"
+#endif
+
 static struct nvs_fs nvs_fs;
 static bool nvs_initialized;
 
@@ -51,6 +55,11 @@ int app_nvs__write(uint16_t id, void const *data, size_t len)
 {
 	int err;
 
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	if (id == NVS_ENTRY_ID__SELFTEST_FAILURES) {
+		++faults.failure_mask_write_attempts;
+	}
+#endif
 	if (data == NULL || len == 0U) {
 		return -EINVAL;
 	}

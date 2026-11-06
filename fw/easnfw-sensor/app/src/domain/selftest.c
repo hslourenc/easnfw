@@ -41,7 +41,16 @@ int selftest__run(void)
 	bool nvs_operational = false;
 
 	for (size_t i = 0U; i < ARRAY_SIZE(checks); ++i) {
-		const int err = checks[i].run();
+		int err = checks[i].run();
+
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+		if (checks[i].failure_bit == EASNFW_SELFTEST_FAILURE_CLOUD &&
+		    err == -EASNFW_STATUS__SELFTEST_CLOUD_UNAVAILABLE &&
+		    faults.ignore_cloud_unavailable != 0) {
+			LOG_WRN("HIL: ignoring unavailable cloud self-test for pipeline verification");
+			err = 0;
+		}
+#endif
 
 		if (err == 0) {
 			LOG_INF("Self-test %s: PASS", checks[i].name);

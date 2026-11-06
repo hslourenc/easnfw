@@ -9,10 +9,16 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/crc.h>
 #include <zephyr/sys/reboot.h>
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+#include <zephyr/shell/shell.h>
+#include <zephyr/shell/shell_uart.h>
+#include "../verif/cli.h"
+#endif
 
 #include <easnfw/interfw_link.h>
 #include <easnfw/nvs.h>
 #include <easnfw/reset.h>
+#include <easnfw/sampling.h>
 #include <easnfw/status.h>
 #include <easnfw/time_sync.h>
 
@@ -196,19 +202,45 @@ void reset__diagnostic_state(int reason, const uint8_t *record_id)
 		.has_record_id = record_id != NULL,
 	};
 	int err;
+	int persist_err;
+	int stop_err;
 
 	if (record_id != NULL) {
 		memcpy(diagnostic.record_id, record_id,
 		       sizeof(diagnostic.record_id));
 	}
-	err = app_nvs__write(NVS_ENTRY_ID__DIAGNOSTIC_REASON, &diagnostic,
-			    sizeof(diagnostic));
-	if (err != 0) {
+	persist_err = app_nvs__write(NVS_ENTRY_ID__DIAGNOSTIC_REASON, &diagnostic,
+				     sizeof(diagnostic));
+	if (persist_err != 0) {
 		LOG_ERR("Could not persist diagnostic reason %d: %d",
-			reason, err);
+			reason, persist_err);
 	}
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	LOG_INF("HIL_SAMPLING_STOP_REQUESTED");
+#endif
+	stop_err = sampling_request_stop();
+	if (stop_err != 0) {
+		LOG_ERR("Could not stop data acquisition: %d", stop_err);
+	}
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	if (persist_err == 0 && record_id != NULL) {
+		char record_id_hex[33];
+
+		for (size_t i = 0U; i < sizeof(diagnostic.record_id); ++i) {
+			snprintk(&record_id_hex[i * 2U],
+				 sizeof(record_id_hex) - i * 2U,
+				 "%02x", diagnostic.record_id[i]);
+		}
+		record_id_hex[sizeof(record_id_hex) - 1U] = '\0';
+		LOG_INF("HIL_DIAGNOSTIC_REASON_STORED reason=%d record_id=%s",
+			reason, record_id_hex);
+	}
+#endif
 	LOG_ERR("Diagnostic state entered (reason=%d); automatic reset is "
 		"disabled until a recoverable fault is specified", reason);
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	cli__diagnostic_entered();
+#endif
 
 	if (!gpio_is_ready_dt(&diagnostic_led)) {
 		LOG_ERR("Diagnostic LED is not ready");
@@ -278,6 +310,9 @@ int reset__easnfw_reset(bool const force)
 	}
 
 	LOG_INF("EASNFW-CLOUD reset complete; resetting EASNFW-SENSOR");
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	shell_print(shell_backend_uart_get_ptr(), "HIL_CLOUD_RESET_COMPLETE");
+#endif
 	/* Let the asynchronous CLOUD_READY ACK finish transmitting. */
 	k_sleep(K_MSEC(RESET_ACK_FLUSH_MS));
 	sys_reboot(SYS_REBOOT_COLD);

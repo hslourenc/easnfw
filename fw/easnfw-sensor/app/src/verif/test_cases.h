@@ -12,6 +12,13 @@ struct injected_faults {
 	int selftest_environment_fault;
 	int selftest_ifl_fault;
 	int selftest_cloud_fault;
+	int ignore_cloud_unavailable;
+	int short_sampling_cycle;
+	int verify_record_metadata;
+	int storage_space_shortage;
+	unsigned int storage_space_shortage_checks;
+	unsigned int storage_append_permanent_failures;
+	unsigned int failure_mask_write_attempts;
 };
 
 extern struct injected_faults faults;
@@ -34,6 +41,14 @@ void app_test_cases__tc043(unsigned int test_case_step);
 void app_test_cases__tc046(unsigned int test_case_step);
 void app_test_cases__tc048(unsigned int test_case_step);
 void app_test_cases__tc020(unsigned int test_case_step);
+void app_test_cases__tc022(unsigned int test_case_step);
+void app_test_cases__tc025(unsigned int test_case_step);
+void app_test_cases__tc026(unsigned int test_case_step);
+void app_test_cases__tc032(unsigned int test_case_step);
+void app_test_cases__tc041(unsigned int test_case_step);
+void app_test_cases__tc062(unsigned int test_case_step);
+void app_test_cases__tc063(unsigned int test_case_step);
+void app_test_cases__tc062_observation_complete(void);
 void app_test_cases__clear_all_faults(void);
 
 #endif /* CONFIG_EASNFW_VERIFICATION_CODE */

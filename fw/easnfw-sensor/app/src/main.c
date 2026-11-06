@@ -15,10 +15,12 @@
 #include <easnfw/sampling.h>
 #include <easnfw/selftest.h>
 #include <easnfw/storage.h>
+#include <easnfw/startup.h>
 #include <easnfw/time_sync.h>
 
 #ifdef CONFIG_EASNFW_VERIFICATION_CODE
 #include "verif/cli.h"
+#include "verif/test_cases.h"
 #endif /* CONFIG_EASNFW_VERIFICATION_CODE */
 
 LOG_MODULE_REGISTER(easnfw_sensor, LOG_LEVEL_INF);
@@ -31,6 +33,14 @@ int main(void)
 	LOG_INF("CLI_H starting");
 	cli__wait_for_shell_ready();
 #else
+	main_continue();
+#endif /* CONFIG_EASNFW_VERIFICATION_CODE */
+
+	return 0;
+}
+
+int main_continue(void)
+{
 	int err;
 	bool selftest_ok = true;
 
@@ -40,6 +50,10 @@ int main(void)
 		LOG_ERR("Could not capture SENSOR reset cause: %d", err);
 	}
 	err = selftest__run();
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	LOG_INF("HIL_STARTUP_SELFTEST result=%d failure_mask_writes=%u",
+		err, faults.failure_mask_write_attempts);
+#endif
 	if (err != 0) {
 		selftest_ok = false;
 		reset__diagnostic_state(err, NULL);
@@ -52,12 +66,16 @@ int main(void)
 	 * reboot reverts an image that cannot reach its peer. Cellular UTC is
 	 * deliberately not part of the criterion.
 	 */
-	if (selftest_ok) {
+	if (selftest_ok
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	    && faults.ignore_cloud_unavailable == 0
+#endif
+	) {
 		err = boot_write_img_confirmed();
 		if (err != 0) {
 			LOG_ERR("Could not confirm MCUboot image: %d", err);
 		}
-	} else {
+	} else if (!selftest_ok) {
 		LOG_ERR("Self-test failed; MCUboot image left unconfirmed");
 	}
 #endif
@@ -72,8 +90,15 @@ int main(void)
 	sampling_start();
 	audio_processing_start();
 	storage_start();
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	if (faults.short_sampling_cycle != 0) {
+		LOG_WRN("HIL: cloud transmission disabled for synthetic records");
+	} else {
+		cloud_link_start();
+	}
+#else
 	cloud_link_start();
+#endif
 	LOG_INF("EASNFW-SENSOR ready");
 	return 0;
-#endif /* CONFIG_EASNFW_VERIFICATION_CODE */
 }

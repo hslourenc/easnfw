@@ -11,4 +11,7 @@
 /** Start the periodic track-acquisition worker. */
 void sampling_start(void);
 
+/** Request that the active acquisition cycle stop at the next block boundary. */
+int sampling_request_stop(void);
+
 #endif
