@@ -177,8 +177,7 @@ Options
   partially implemented; these count as not fully implemented. This currently
   excludes TC-005, TC-011, and TC-013.
 * ``--no-human`` excludes test cases that require a person to verify sensor
-  behavior or physical connections. This currently excludes TC-005 and
-  TC-007.
+  behavior or physical connections. This currently excludes no test cases.
 * ``--no-env-sensor`` excludes test cases that require the external
   environmental sensor. This currently excludes TC-007.
 * ``--no-sim`` excludes test cases that require a SIM and cellular service.
@@ -291,9 +290,8 @@ triggers specific code paths on demand, each test case below assumes it is
 driven by a host PC issuing CLI commands to EASNFW-SENSOR.
 
 The current HIL CLI exposes TC-001 through TC-013, TC-020, TC-042, TC-043, TC-046, and
-TC-048. TC-005 and TC-007 only verify that sensor data can be read; physical
-signal accuracy and configured sensor behavior still require human
-verification. TC-011 is deliberately inconclusive until a cloud backend
+TC-048. TC-005 and TC-007 only verify that sensor data can be read; they do
+not check physical signal accuracy or configured sensor behavior. TC-011 is deliberately inconclusive until a cloud backend
 contract exists, and TC-013 therefore remains partial; partial cases count as
 not implemented. TC-007 is completely implemented but requires the external
 environmental sensor to be connected, and TC-048 is completely implemented but
@@ -325,11 +323,11 @@ have booted, run CLI_C against SENSOR's VCOM console. CLI_C's reset command
 coordinates a CLOUD reset and then resets SENSOR before each test case, so
 leave both boards connected and powered throughout the suite.
 
-The current bench does not have the environmental sensor or a SIM. Therefore,
-do not treat TC-007 environmental sampling or TC-048 cellular UTC synchronization
-as completed verification. Use
-``easncli tcfull --implemented-only --no-human --no-env-sensor --no-sim`` to run
-only implemented cases that need none of these. TC-048 may still be run
+The current bench has the environmental sensor but no working SIM. Therefore,
+do not treat TC-048 cellular UTC synchronization as completed verification.
+Use ``easncli tcfull --implemented-only --no-sim`` to run only
+implemented cases that do not need cellular service (add ``--no-env-sensor``
+on benches without the sensor). TC-048 may still be run
 separately to verify its pre-sync checks, but with no SIM or cellular service
 its final result is inconclusive.
 
@@ -461,8 +459,8 @@ Expected results
 * The self-test starts I2S, discards startup blocks, acquires a complete PCM
   block, and reports ``TCSTATUS_SUCCESS``.
 
-TC-006: Audio sensor sampling check reports failure when disconnected
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-006: Audio sensor sampling check reports an injected acquisition failure
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""
@@ -518,8 +516,8 @@ Expected results
    calibrated VOC concentration. See the implementation note in the design
    chapter.
 
-TC-008: Environmental sensor sampling check reports failure when disconnected
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TC-008: Environmental sensor sampling check reports an injected acquisition failure
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Objective
 """""""""

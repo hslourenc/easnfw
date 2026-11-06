@@ -81,8 +81,12 @@ be established. The SDK development key must never be used for deployment.
 External environmental sensor
 -----------------------------
 
-The BME688-compatible sensor address ``0x76`` is provisional. Confirm the
-wiring and the address on the production hardware. Gas resistance in ohms, as
+The BME688-compatible sensor address ``0x76`` was confirmed on the bench
+module (SDO tied to GND, CS tied high for I2C, wired to the Audio DK Arduino
+I2C pins P1.02/P1.03): TC-007 acquired a full sample. Confirm the wiring and
+the address again on the production hardware. TC-008 verifies detection only
+through fault injection; physical disconnection has not been tested. Gas
+resistance in ohms, as
 reported by the sensor driver, is the VOC quantity the firmware records; no
 index derivation is required.
 
