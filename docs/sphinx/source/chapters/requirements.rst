@@ -146,11 +146,8 @@ record from a previous reset cycle is scheduled, if the self-test sequence
 identifies all the checked capabilities as operational, EASNFW shall start
 the data acquisition cycle.
 
-Before its first data acquisition cycle after boot, EASNFW shall obtain valid
-UTC time from the LTE-connected EASNFW-CLOUD component. If UTC is not yet
-available, EASNFW shall retry synchronization and shall not start data
-acquisition. A time-synchronization delay by itself shall not cause entry into
-diagnostic state.
+Before the first data acquisition cycle after boot, EASNFW shall obtain valid
+UTC time from the LTE-connected EASNFW-CLOUD component.
 
 For each data acquisition cycle, EASNFW shall wait until there is sufficient
 mass storage free-space for a new ecoacoustic record, acquire audio and
