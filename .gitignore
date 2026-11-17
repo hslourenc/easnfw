@@ -4,7 +4,9 @@ doc/requirements/out/*.out
 doc/requirements/out/*.toc
 *.bkp
 *.bak
-build/
+fw/easnfw-sensor/app/build*/
+fw/easnfw-cloud/app/build*/
+docs/sphinx/build/
 .vscode/
 .github/skills/
 tc-*/
