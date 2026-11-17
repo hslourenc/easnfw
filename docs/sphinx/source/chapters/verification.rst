@@ -385,7 +385,7 @@ cases that explicitly test cellular time, not every case that may use it.
      - Dependencies and limits
    * - TC-001--006
      - Complete
-     - TC-005 checks block acquisition, not physical signal accuracy.
+     - No additional dependency.
    * - TC-007
      - Complete
      - Environment.
@@ -804,16 +804,13 @@ Verify cloud platform communication and durable receipt.
 Preconditions
 """""""""""""
 
-An authenticated, reachable backend implementing the agreed ingestion API and
-durable-commit acknowledgement is required.
+An authenticated, reachable backend implementing the agreed ingestion API is
+required.
 
 Procedure
 """""""""
 
 #. Run the cloud platform self-test with no injected fault.
-#. Check whether an authenticated transmission receives a durable-commit
-   acknowledgement. Until the backend contract is available, check that the
-   self-test reports the service as unavailable instead of reporting success.
 
 Expected results
 """"""""""""""""

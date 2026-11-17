@@ -24,20 +24,51 @@ sequence to check whether the following functions are operational:
 * environmental data acquisition (environmental data can be sampled from the
   environmental sensor);
 * inter-firmware link (EASNFW-SENSOR and EASNFW-CLOUD can communicate); and
-* cloud platform communication (data can be transmitted to and fetched from the
-  cloud platform).
 
-.. _section_req_power_on_log_tx:
+.. note::
 
-REQ-024: Power-On Log Payload Transmission
-==========================================
+   :ref:`section_req_reset_reason_restore` contains actions to be taken after
+   the NVS access check.
 
-When the self-test sequence finishes, if both the cloud platform communication
-and the inter-firmware link are classified as operational by the self-test
-sequence, EASNFW shall schedule the transmission of the power-on log payload to
-the cloud platform. Otherwise, EASNFW shall enter diagnostic state.
+.. note::
 
-The power-on log payload includes:
+   The cloud platform communication check was replaced with
+   :ref:`section_req_conn_check_cycle`.
+
+.. _section_req_conn_check_cycle:
+
+REQ-024: Connectivity Check Cycle
+=================================
+
+When the self-test sequence finishes, if the inter-firmware link check passes,
+EASNFW shall start the connectivity check cycle, whose steps are defined below.
+Otherwise, EASNFW shall enter diagnostic state.
+
+Connectivity check cycle steps:
+
+#. if UTC time not obtained:
+
+   #. attempt to obtain UTC time;
+
+#. if power-on log payload not transmitted:
+
+   #. attempt to transmit the power-on log payload (defined below);
+
+#. if latest firmware version available not obtained:
+
+   #. attempt to obtain latest firmware version;
+
+#. if UTC time obtained, power-on log payload transmitted and
+   latest firmware version available obtained:
+
+   #. stop cyle (connectivity check succeeded);
+
+#. else:
+
+   #. wait 10 seconds;
+   #. go back to the first step.
+
+Information contained in the power-on log payload:
 
 * the revision of EASNFW-SENSOR and EASNFW-CLOUD;
 * the reset reason from NVS, if NVS access is classified as operational by the
@@ -47,35 +78,32 @@ The power-on log payload includes:
   is classified as operational by the self-test sequence; and
 * the results of the self-test sequence.
 
-REQ-025: Reset Reason and History Update
-========================================
+.. _section_req_reset_reason_restore:
 
-When the power-on log payload transmission is scheduled, EASNFW shall attempt to
-clear the reset reason from NVS and update the reset history on NVS.
+REQ-025: Reset Reason Restore
+=============================
 
-The reset history on NVS is a ring buffer that contains a rolling history of the
-date and time of the last ``PARAM_MAX_RECOVERY_RESETS`` resets. The initial
-implementation baseline for ``PARAM_MAX_RECOVERY_RESETS`` is 5.
-
-.. note::
-
-   "attempt" is used here because at this point, the self-test sequence may have
-   found NVS access as faulty.
+After the NVS access check of the self-test sequence, if NVS access is
+classified as operational, EASNFW shall restore the reset reason entry of the
+NVS to a default value.
 
 .. note::
 
-   The reset history is needed for the recovery reset mechanism described in
+   This is part of the self-test sequence itself.
+
+.. note::
+
+   The reset reason is set when resetting from diagnostic state, according to
    :ref:`section_req_diag_state`.
 
 REQ-026: Pending Ecoacoustic Data Transmission
 ==============================================
 
-When the attempt to clear the reset reason from NVS is finished, if all the
-following are classified as operational by the self-test sequence:
+When the connectivity check succeeds (:ref:`section_req_conn_check_cycle`), if
+all the following have been classified as operational by the self-test sequence:
 
-* mass storage access;
-* inter-firmware link; and
-* cloud platform communication;
+* mass storage access; and
+* inter-firmware link;
 
 EASNFW shall schedule any pending ecoacoustic records from previous reset cycles
 for transmission to the cloud platform.
@@ -94,9 +122,20 @@ When EASNFW enters the diagnostic state, EASNFW shall:
 #. transmit a diagnostic log payload to the cloud;
 
 #. if the reason why it entered diagnostic state is recoverable by reset, and
-   the recovery reset counter is less than ``PARAM_MAX_RECOVERY_RESETS``:
+   the recovery reset counter is less than ``PARAM_MAX_RECOVERY_RESETS``
+   (baseline: 10):
 
-   #. increment the recovery reset counter;
+   #. if uptime is more than ``PARAM_RECOVERY_RESET_WINDOW`` (baseline: 120)
+      seconds:
+
+      #. clear the recovery reset counter;
+   
+   #. else:
+
+      #. increment the recovery reset counter;
+   
+   #. copy the reason why it entered diagnostic state to the reset reason entry
+      of the NVS;
    #. reset;
 
 #. otherwise:
@@ -108,7 +147,7 @@ When EASNFW enters the diagnostic state, EASNFW shall:
      the device is in diagnostic state.
 
 The diagnostic log payload contains all the information of the power-on log
-payload (see :ref:`section_req_power_on_log_tx`) plus the reason why it entered
+payload (see :ref:`section_req_conn_check_cycle`) plus the reason why it entered
 diagnostic state.
 
 .. note::
@@ -121,7 +160,7 @@ diagnostic state.
 .. note::
 
    As of the current specification, no recoverable-by-reset failures have
-   been identified. Such failures will be properly defined if and when a
+   been identified. Such failures will be properly defined when and if a
    plausible case is identified.
 
 .. note::
@@ -130,24 +169,14 @@ diagnostic state.
    that the recovery reset counter needs to be stored in NVS to persist across
    resets.
 
-REQ-028: Recovery Reset Counter Clearing
-========================================
-
-After ``PARAM_RECOVERY_RESET_WINDOW`` seconds (initial baseline: 120 seconds) of
-uptime, EASNFW shall clear the recovery reset counter.
-
 .. _section_req_data_acq_cycle:
 
 REQ-029: Data Acquisition Cycle
 ===============================
 
-After the transmission of the power-on log payload and any pending ecoacoustic
-record from a previous reset cycle is scheduled, if the self-test sequence
-identifies all the checked capabilities as operational, EASNFW shall start
-the data acquisition cycle.
-
-Before the first data acquisition cycle after boot, EASNFW shall obtain valid
-UTC time from the LTE-connected EASNFW-CLOUD component.
+After the transmission of pending ecoacoustic records from previous reset cycle
+(if any) is scheduled, if the self-test sequence identifies all the checked
+capabilities as operational, EASNFW shall start the data acquisition cycle.
 
 For each data acquisition cycle, EASNFW shall wait until there is sufficient
 mass storage free-space for a new ecoacoustic record, acquire audio and
