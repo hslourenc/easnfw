@@ -32,9 +32,23 @@ int lte_m_connect(void)
 		modem_initialized = true;
 	}
 
+	LOG_INF("Starting LTE network registration");
 	err = lte_lc_connect();
-	if (err != 0 && err != -EINPROGRESS) {
-		LOG_ERR("LTE network registration failed: %d", err);
+	if (err == 0) {
+		LOG_INF("LTE network registration complete");
+	} else if (err == -EINPROGRESS) {
+		LOG_INF("LTE network registration is in progress");
+	} else {
+		enum lte_lc_nw_reg_status status;
+		int status_err = lte_lc_nw_reg_status_get(&status);
+
+		if (status_err == 0) {
+			LOG_ERR("LTE network registration failed: %d (status=%d)",
+				err, (int)status);
+		} else {
+			LOG_ERR("LTE network registration failed: %d; "
+				"status query failed: %d", err, status_err);
+		}
 	}
 	k_mutex_unlock(&modem_lock);
 	return err == -EINPROGRESS ? 0 : err;

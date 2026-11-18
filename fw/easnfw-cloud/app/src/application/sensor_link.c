@@ -459,6 +459,13 @@ static void handle_frame(struct ifl_frame const *frame)
 						    &header.seq,
 						    K_NO_WAIT) == 0 ?
 				IFL_STAT__OK : IFL_STAT__BUSY;
+			if (last_rx_status == IFL_STAT__OK) {
+				LOG_INF("UTC request received from SENSOR (seq=%u)",
+					(unsigned int)header.seq);
+			} else {
+				LOG_WRN("UTC request queue full (seq=%u)",
+					(unsigned int)header.seq);
+			}
 		}
 	} else {
 		last_rx_status = IFL_STAT__UNKNOWN_CMD;
@@ -495,6 +502,7 @@ static void time_worker(void *arg1, void *arg2, void *arg3)
 			continue;
 		}
 		ARG_UNUSED(request_sequence);
+		LOG_INF("Starting cellular UTC acquisition");
 		err = lte_m_get_utc_time_ms(&unix_time_ms);
 		if (err != 0) {
 			LOG_WRN("Cannot provide UTC to SENSOR yet (%d)", err);
