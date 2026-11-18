@@ -52,7 +52,7 @@ The output is written to `docs/sphinx/build/html`.
 
 ## Building the firmware
 
-1. Install the command line version of nRF Connect SDK v3.4.0 as per
+1. Install the command line version of nRF Connect SDK v3.4.2 as per
    [Installing the nRF Connect
    SDK](https://nrfconnectdocs.nordicsemi.com/ncs/3.4.0/nrf/installation/install_ncs.html).
 2. Start the toolchain environment with (also from [Installing the nRF Connect SDK](https://nrfconnectdocs.nordicsemi.com/ncs/latest/nrf/installation/install_ncs.html)):
@@ -60,20 +60,20 @@ The output is written to `docs/sphinx/build/html`.
     **Linux:**
 
     ```
-    nrfutil sdk-manager toolchain launch --ncs-version v3.4.0 --shell
+    nrfutil sdk-manager toolchain launch --ncs-version v3.4.2 --shell
 
     ```
 
     **macOS:**
 
     ```
-    nrfutil sdk-manager toolchain launch --ncs-version v3.4.0 --shell
+    nrfutil sdk-manager toolchain launch --ncs-version v3.4.2 --shell
     ```
 
     **Windows:**
 
     ```
-    nrfutil sdk-manager toolchain launch --ncs-version v3.4.0 --terminal
+    nrfutil sdk-manager toolchain launch --ncs-version v3.4.2 --terminal
     ```
 
 3. Run the script to define the required environment variables (assuming the
@@ -82,21 +82,21 @@ The output is written to `docs/sphinx/build/html`.
     **Linux:**
 
     ```
-    source ~/ncs/v3.4.0/zephyr/zephyr-env.sh
+    source ~/ncs/v3.4.2/zephyr/zephyr-env.sh
 
     ```
 
     **macOS:**
 
     ```
-    source /opt/nordic/ncs/v3.4.0/zephyr/zephyr-env.sh
+    source /opt/nordic/ncs/v3.4.2/zephyr/zephyr-env.sh
 
     ```
 
     **Windows:**
 
     ```
-    C:\ncs\v3.4.0\zephyr\zephyr-env.cmd
+    C:\ncs\v3.4.2\zephyr\zephyr-env.cmd
     ```
 
 4. At the root of the repository, build EASNFW-SENSOR with:

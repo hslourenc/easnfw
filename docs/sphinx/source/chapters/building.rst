@@ -3,13 +3,13 @@ Building and Signing
 ********************
 
 This chapter is the authoritative guide to configuring, building, signing, and
-running EASNFW images. The repository is validated with nRF Connect SDK v3.4.0
+running EASNFW images. The repository is validated with nRF Connect SDK v3.4.2
 and Zephyr 4.4.0.
 
 Prerequisites
 =============
 
-Install nRF Connect SDK v3.4.0 and its matching toolchain using the
+Install nRF Connect SDK v3.4.2 and its matching toolchain using the
 `Nordic installation guide
 <https://nrfconnectdocs.nordicsemi.com/ncs/3.4.0/nrf/installation/install_ncs.html>`_.
 Start a toolchain terminal, enter the repository root, and load the Zephyr
@@ -17,9 +17,9 @@ environment:
 
 .. code-block:: console
 
-   source ~/ncs/v3.4.0/zephyr/zephyr-env.sh
+   source ~/ncs/v3.4.2/zephyr/zephyr-env.sh
 
-On Windows, run ``C:\ncs\v3.4.0\zephyr\zephyr-env.cmd`` from the NCS command
+On Windows, run ``C:\ncs\v3.4.2\zephyr\zephyr-env.cmd`` from the NCS command
 prompt.
 
 Building Firmware
