@@ -39,7 +39,7 @@ jobs:
       - name: Install documentation dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r docs/requirements.txt
+          python -m pip install -r env-cfg/docs-requirements.txt
       
       - name: Download PlantUML
         run: |

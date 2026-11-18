@@ -153,12 +153,13 @@ CLI_C creates a timestamped result directory with JSON results and logs.
 Building Documentation
 ======================
 
-Install the documentation dependencies from ``docs/requirements.txt`` and
+Install the documentation dependencies from
+``env-cfg/docs-requirements.txt`` and
 provide Java plus a PlantUML jar:
 
 .. code-block:: console
 
-   python -m pip install -r docs/requirements.txt
+   python -m pip install -r env-cfg/docs-requirements.txt
    PLANTUML_JAR=/path/to/plantuml.jar make -C docs/sphinx html
 
 The generated HTML site is under ``docs/sphinx/build/html``. The Sphinx source

@@ -38,13 +38,13 @@ EASNFW is subdivided into two components:
 
 For the full and authoritative build instructions, see the
 [Building and Signing](docs/sphinx/source/chapters/building.rst) chapter.
-Requirements include Python packages from `docs/requirements.txt`, Java, and a
-PlantUML jar.
+Requirements include Python packages from
+`env-cfg/docs-requirements.txt`, Java, and a PlantUML jar.
 
 Quick build:
 
 ```sh
-python -m pip install -r docs/requirements.txt
+python -m pip install -r env-cfg/docs-requirements.txt
 make -C docs/sphinx html
 ```
 
