@@ -11,11 +11,35 @@ LOG_MODULE_REGISTER(easnfw_lte_m, LOG_LEVEL_INF);
 
 K_MUTEX_DEFINE(modem_lock);
 static bool modem_initialized;
+static bool registration_started;
+static int64_t next_time_update_ms;
+
+#define TIME_UPDATE_RETRY_MS 30000
+
+static void lte_event_handler(const struct lte_lc_evt *evt)
+{
+	switch (evt->type) {
+	case LTE_LC_EVT_NW_REG_STATUS:
+		LOG_INF("LTE reg status: %d", (int)evt->nw_reg_status);
+		break;
+	case LTE_LC_EVT_LTE_MODE_UPDATE:
+		LOG_INF("LTE mode: %d", (int)evt->lte_mode);
+		break;
+	case LTE_LC_EVT_CELL_UPDATE:
+		LOG_INF("Cell: id=%u tac=%u", evt->cell.id, evt->cell.tac);
+		break;
+	case LTE_LC_EVT_MODEM_EVENT:
+		LOG_INF("Modem event: %d", (int)evt->modem_evt.type);
+		break;
+	default:
+		break;
+	}
+}
 
 /**
- * @brief Initialize the modem and synchronously attach to an LTE network.
+ * @brief Initialize the modem and start LTE registration without waiting.
  *
- * @return 0 when registered, otherwise the modem or LTE link-control error.
+ * @return 0 when registered, -EAGAIN while registering, or an error.
  */
 int lte_m_connect(void)
 {
@@ -30,28 +54,30 @@ int lte_m_connect(void)
 			return err;
 		}
 		modem_initialized = true;
+		lte_lc_register_handler(lte_event_handler);
 	}
 
-	LOG_INF("Starting LTE network registration");
-	err = lte_lc_connect();
-	if (err == 0) {
-		LOG_INF("LTE network registration complete");
-	} else if (err == -EINPROGRESS) {
-		LOG_INF("LTE network registration is in progress");
-	} else {
-		enum lte_lc_nw_reg_status status;
-		int status_err = lte_lc_nw_reg_status_get(&status);
-
-		if (status_err == 0) {
-			LOG_ERR("LTE network registration failed: %d (status=%d)",
-				err, (int)status);
-		} else {
-			LOG_ERR("LTE network registration failed: %d; "
-				"status query failed: %d", err, status_err);
+	if (!registration_started) {
+		LOG_INF("Starting LTE network registration");
+		err = lte_lc_connect_async(NULL);
+		if (err != 0) {
+			LOG_ERR("Could not start LTE registration: %d", err);
+			k_mutex_unlock(&modem_lock);
+			return err;
 		}
+		registration_started = true;
 	}
+
+	enum lte_lc_nw_reg_status status;
+
+	err = lte_lc_nw_reg_status_get(&status);
 	k_mutex_unlock(&modem_lock);
-	return err == -EINPROGRESS ? 0 : err;
+	if (err != 0) {
+		LOG_ERR("Could not query LTE registration: %d", err);
+		return err;
+	}
+	return status == LTE_LC_NW_REG_REGISTERED_HOME ||
+	       status == LTE_LC_NW_REG_REGISTERED_ROAMING ? 0 : -EAGAIN;
 }
 
 /**
@@ -71,26 +97,20 @@ int lte_m_get_utc_time_ms(int64_t *unix_time_ms)
 	if (err != 0) {
 		return err;
 	}
-	err = date_time_now(unix_time_ms);
-	if (err == 0) {
-		return 0;
-	}
-	err = date_time_update_async(NULL);
-	if (err != 0) {
-		LOG_ERR("Could not request cellular time update: %d", err);
-		return err;
+	if (date_time_is_valid()) {
+		return date_time_now(unix_time_ms);
 	}
 
-	for (uint32_t elapsed = 0U; elapsed < 60U; ++elapsed) {
-		k_sleep(K_SECONDS(1));
-		err = date_time_now(unix_time_ms);
-		if (err == 0) {
-			return 0;
-		}
-		if (err != -ENODATA) {
+	k_mutex_lock(&modem_lock, K_FOREVER);
+	if (k_uptime_get() >= next_time_update_ms) {
+		err = date_time_update_async(NULL);
+		if (err != 0) {
+			LOG_ERR("Could not request cellular time update: %d", err);
+			k_mutex_unlock(&modem_lock);
 			return err;
 		}
+		next_time_update_ms = k_uptime_get() + TIME_UPDATE_RETRY_MS;
 	}
-	LOG_WRN("Cellular network has not provided UTC time");
-	return -ETIMEDOUT;
+	k_mutex_unlock(&modem_lock);
+	return -EAGAIN;
 }

@@ -53,6 +53,9 @@ struct diagnostic_reason {
 
 static struct reset_causes startup_reset_causes;
 static bool sensor_reset_cause_valid;
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+K_SEM_DEFINE(cloud_reason_persisted, 0, 1);
+#endif
 static bool recovery_timer_started;
 static struct k_thread recovery_timer_thread_data;
 K_THREAD_STACK_DEFINE(recovery_timer_stack, 1024U);
@@ -87,6 +90,9 @@ int reset__capture_startup_reason(void)
 {
 	int err = hwinfo_get_reset_cause(&startup_reset_causes.sensor);
 
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	k_sem_reset(&cloud_reason_persisted);
+#endif
 	if (err != 0) {
 		LOG_ERR("Could not read SENSOR reset cause: %d", err);
 		return err;
@@ -110,12 +116,39 @@ int reset__capture_startup_reason(void)
 /** Persist the CLOUD reset cause when received with the UTC response. */
 int reset__cloud_reason_set(uint32_t cause)
 {
+	int err;
+
 	if (!sensor_reset_cause_valid) {
 		return -EAGAIN;
 	}
 	startup_reset_causes.cloud = cause;
-	return reset_causes_persist();
+	err = reset_causes_persist();
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+	if (err == 0) {
+		k_sem_give(&cloud_reason_persisted);
+	}
+#endif
+	return err;
 }
+
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+int reset__verify_cloud_reason(void)
+{
+	struct reset_causes persisted;
+	int err;
+
+	if (k_sem_take(&cloud_reason_persisted, K_SECONDS(5)) != 0) {
+		return -ETIMEDOUT;
+	}
+	err = app_nvs__read(NVS_ENTRY_ID__RESET_REASON, &persisted,
+			    sizeof(persisted));
+	if (err != 0) {
+		return err;
+	}
+	return persisted.sensor == startup_reset_causes.sensor &&
+	       persisted.cloud == startup_reset_causes.cloud ? 0 : -EIO;
+}
+#endif
 
 /** Append one synchronized UTC timestamp to the fixed-size NVS ring. */
 int reset__history_update(void)

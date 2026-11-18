@@ -302,8 +302,9 @@ def run_tc(test_case: int, requested_port: str | None,
                     test_case, log_lines[observation_start:]
                 )
             else:
+                timeout = 960.0 if test_case == 48 else 120.0
                 result_line = wait_for_status(
-                    port, ("SUCCESS", "FAIL", "INCONCLUSIVE"), 120.0, log_lines
+                    port, ("SUCCESS", "FAIL", "INCONCLUSIVE"), timeout, log_lines
                 )
                 result = result_from_status(result_line)
     except (TimeoutError, serial.SerialException) as exc:

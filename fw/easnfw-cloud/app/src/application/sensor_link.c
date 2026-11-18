@@ -20,6 +20,7 @@ LOG_MODULE_REGISTER(easnfw_sensor_link, LOG_LEVEL_INF);
  * SENSOR before this transfer is used for production records.
  */
 #define IFL_RX_QUEUE_DEPTH 2u
+#define UTC_RETRY_SECONDS 5
 
 struct ifl_frame {
 	uint8_t bytes[INTERFW_LINK_UART_MAX_FRAME_SIZE];
@@ -455,17 +456,15 @@ static void handle_frame(struct ifl_frame const *frame)
 		if (header.len != 0u || header.flags != 0u) {
 			last_rx_status = IFL_STAT__BAD_LEN;
 		} else {
-			last_rx_status = k_msgq_put(&time_request_q,
-						    &header.seq,
-						    K_NO_WAIT) == 0 ?
-				IFL_STAT__OK : IFL_STAT__BUSY;
-			if (last_rx_status == IFL_STAT__OK) {
+			if (k_msgq_put(&time_request_q, &header.seq,
+				       K_NO_WAIT) == 0) {
 				LOG_INF("UTC request received from SENSOR (seq=%u)",
 					(unsigned int)header.seq);
 			} else {
-				LOG_WRN("UTC request queue full (seq=%u)",
+				LOG_DBG("UTC request already queued (seq=%u)",
 					(unsigned int)header.seq);
 			}
+			last_rx_status = IFL_STAT__OK;
 		}
 	} else {
 		last_rx_status = IFL_STAT__UNKNOWN_CMD;
@@ -503,7 +502,12 @@ static void time_worker(void *arg1, void *arg2, void *arg3)
 		}
 		ARG_UNUSED(request_sequence);
 		LOG_INF("Starting cellular UTC acquisition");
-		err = lte_m_get_utc_time_ms(&unix_time_ms);
+		do {
+			err = lte_m_get_utc_time_ms(&unix_time_ms);
+			if (err == -EAGAIN) {
+				k_sleep(K_SECONDS(UTC_RETRY_SECONDS));
+			}
+		} while (err == -EAGAIN);
 		if (err != 0) {
 			LOG_WRN("Cannot provide UTC to SENSOR yet (%d)", err);
 			continue;

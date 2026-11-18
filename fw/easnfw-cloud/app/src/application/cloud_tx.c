@@ -16,7 +16,25 @@ K_THREAD_STACK_DEFINE(cloud_tx_stack, 1024);
 static struct k_thread cloud_tx_thread_data;
 
 #define CLOUD_MAX_RETRIES 10u
+#define CLOUD_REGISTRATION_POLL_SECONDS 5
 static uint32_t global_retry_count;
+
+/** Preserve the bounded registration wait for the dedicated TX thread. */
+static int wait_for_registration(void)
+{
+	int64_t deadline = k_uptime_get() +
+		(CONFIG_LTE_NETWORK_TIMEOUT * 1000LL);
+	int err;
+
+	do {
+		err = lte_m_connect();
+		if (err != -EAGAIN) {
+			return err;
+		}
+		k_sleep(K_SECONDS(CLOUD_REGISTRATION_POLL_SECONDS));
+	} while (k_uptime_get() < deadline);
+	return -ETIMEDOUT;
+}
 
 /** @brief Identify failures eligible for bounded transient retry. */
 static bool is_transient_error(int error)
@@ -54,7 +72,7 @@ static int transmit_record(struct easnfw_pipeline_message const *message)
 		if (err != 0) {
 			return err;
 		}
-		err = lte_m_connect();
+		err = wait_for_registration();
 
 		if (err == 0) {
 			err = http_client_post(message->data, message->length);

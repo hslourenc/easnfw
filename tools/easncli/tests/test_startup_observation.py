@@ -191,6 +191,33 @@ class StartupObservationTests(unittest.TestCase):
             self.assertEqual(calls, [("RESETDONE",), ("RESETDONE", "FAIL")])
             self.assertIn("TCSTATUS_SUCCESS", (target / "tc-022_cli_c.log").read_text())
 
+    def test_runner_allows_longer_cellular_time_acquisition(self):
+        class FakeSerial:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+            def write(self, data):
+                pass
+
+        timeouts = []
+
+        def wait(port, statuses, timeout, log_lines):
+            timeouts.append(timeout)
+            return "TCSTATUS_RESETDONE" if len(timeouts) == 1 else "TCSTATUS_SUCCESS"
+
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(easncli.serial, "Serial", FakeSerial), \
+                 patch.object(easncli, "wait_for_status", side_effect=wait), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                easncli.run_tc(48, "COM3", Path(directory) / "result")
+        self.assertEqual(timeouts, [15.0, 960.0])
+
 
 if __name__ == "__main__":
     unittest.main()

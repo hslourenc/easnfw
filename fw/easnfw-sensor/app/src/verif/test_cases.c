@@ -12,6 +12,7 @@
 #include <easnfw/mass_storage.h>
 #include <easnfw/nvs.h>
 #include <easnfw/pipeline.h>
+#include <easnfw/reset.h>
 #include <easnfw/selftest.h>
 #include <easnfw/status.h>
 #include <easnfw/time_sync.h>
@@ -748,6 +749,7 @@ void app_test_cases__tc046(unsigned int test_case_step)
 
 /** Duration of the simulated network outage in TC-048. */
 #define TC048_OUTAGE_MS 5000
+#define TC048_ACQUISITION_TIMEOUT_SECONDS 900
 
 /**
  * Verify TC-048: UTC is inaccessible before synchronization, and acquisition
@@ -763,6 +765,12 @@ void app_test_cases__tc048(unsigned int test_case_step)
 	int err;
 
 	(void)test_case_step;
+	err = reset__capture_startup_reason();
+	if (err != 0) {
+		LOG_ERR("TCSTATUS_FAIL - could not capture SENSOR reset cause: %d",
+			err);
+		return;
+	}
 	app_utc_time__verification_outage_start(TC048_OUTAGE_MS);
 	err = app_utc_time__now_ms(&before_ms);
 	if (err != -ENODATA) {
@@ -770,7 +778,9 @@ void app_test_cases__tc048(unsigned int test_case_step)
 		return;
 	}
 	start_ms = k_uptime_get();
-	err = app_utc_time__acquire(K_SECONDS(2), 1U, K_SECONDS(70), &attempts);
+	err = app_utc_time__acquire(K_SECONDS(2), 1U,
+				    K_SECONDS(TC048_ACQUISITION_TIMEOUT_SECONDS),
+				    &attempts);
 	if (err != 0) {
 		LOG_WRN("TCSTATUS_INCONCLUSIVE - cellular UTC was unavailable: %d",
 			err);
@@ -779,6 +789,11 @@ void app_test_cases__tc048(unsigned int test_case_step)
 	if (k_uptime_get() - start_ms < TC048_OUTAGE_MS || attempts < 2U) {
 		LOG_ERR("TCSTATUS_FAIL - acquisition ended during the outage (%u requests)",
 			attempts);
+		return;
+	}
+	err = reset__verify_cloud_reason();
+	if (err != 0) {
+		LOG_ERR("TCSTATUS_FAIL - CLOUD reset cause was not persisted: %d", err);
 		return;
 	}
 	err = app_utc_time__now_ms(&before_ms);
