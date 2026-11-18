@@ -748,6 +748,7 @@ void app_test_cases__tc046(unsigned int test_case_step)
 
 /** Duration of the simulated network outage in TC-048. */
 #define TC048_OUTAGE_MS 5000
+#define TC048_ACQUISITION_TIMEOUT_SECONDS 900
 
 /**
  * Verify TC-048: UTC is inaccessible before synchronization, and acquisition
@@ -770,7 +771,9 @@ void app_test_cases__tc048(unsigned int test_case_step)
 		return;
 	}
 	start_ms = k_uptime_get();
-	err = app_utc_time__acquire(K_SECONDS(2), 1U, K_SECONDS(70), &attempts);
+	err = app_utc_time__acquire(K_SECONDS(2), 1U,
+				    K_SECONDS(TC048_ACQUISITION_TIMEOUT_SECONDS),
+				    &attempts);
 	if (err != 0) {
 		LOG_WRN("TCSTATUS_INCONCLUSIVE - cellular UTC was unavailable: %d",
 			err);

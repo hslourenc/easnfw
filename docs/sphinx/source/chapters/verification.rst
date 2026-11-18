@@ -2181,7 +2181,8 @@ verifies that UTC was inaccessible (``-ENODATA``) during the outage, that
 acquisition kept retrying (at least two requests) and ended only after the
 outage, and that the restored time advances monotonically and formats as
 ISO-8601 UTC. If cellular time cannot be obtained at all, the case is
-inconclusive rather than a failure. Production startup calls the same function
+inconclusive rather than a failure after a 15-minute acquisition deadline.
+The host runner allows 16 minutes for the result. Production startup calls the same function
 before ``sampling_start()``, so no record is acquired while it is blocked.
 
 Procedure
