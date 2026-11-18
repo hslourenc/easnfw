@@ -2176,10 +2176,12 @@ CLI_H coverage
 The automated HIL check simulates a network outage: it invalidates the UTC
 anchor and makes SENSOR ignore UTC responses from EASNFW-CLOUD for five
 seconds. It then runs the same ``app_utc_time__acquire()`` loop used at
-production startup and
+production startup. As CLI_H bypasses normal startup, the test first captures
+the SENSOR reset cause so the CLOUD reset cause can be persisted. The test
 verifies that UTC was inaccessible (``-ENODATA``) during the outage, that
 acquisition kept retrying (at least two requests) and ended only after the
-outage, and that the restored time advances monotonically and formats as
+outage, that both reset causes were persisted in NVS, and that the restored
+time advances monotonically and formats as
 ISO-8601 UTC. If cellular time cannot be obtained at all, the case is
 inconclusive rather than a failure after a 15-minute acquisition deadline.
 The host runner allows 16 minutes for the result. Production startup calls the same function

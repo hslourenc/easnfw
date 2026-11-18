@@ -242,6 +242,7 @@ static ifl_status_t ifl__received_command_status(
 		if (header->cmd_id == IFL_CMD_SENSOR__UTC_TIME) {
 			uint64_t utc_ms;
 			uint32_t cloud_reset_cause;
+			int err;
 
 			if (payload == NULL) {
 				return IFL_STAT__BAD_PARAM;
@@ -253,8 +254,12 @@ static ifl_status_t ifl__received_command_status(
 				LOG_ERR("Rejected invalid UTC time from CLOUD");
 				return IFL_STAT__BAD_PARAM;
 			}
-			if (reset__cloud_reason_set(cloud_reset_cause) != 0) {
-				LOG_WRN("Could not persist CLOUD reset cause");
+			err = reset__cloud_reason_set(cloud_reset_cause);
+			if (err != 0) {
+				LOG_WRN("Could not persist CLOUD reset cause: %d", err);
+			} else {
+				LOG_INF("Persisted CLOUD reset cause 0x%08x",
+					cloud_reset_cause);
 			}
 			LOG_INF("UTC time synchronized from cellular network");
 			return IFL_STAT__OK;

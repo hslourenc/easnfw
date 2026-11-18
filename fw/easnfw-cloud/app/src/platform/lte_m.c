@@ -3,7 +3,6 @@
 #include <date_time.h>
 #include <modem/lte_lc.h>
 #include <modem/nrf_modem_lib.h>
-#include <nrf_modem_at.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <easnfw/lte_m.h>
@@ -15,31 +14,7 @@ static bool modem_initialized;
 static bool registration_started;
 static int64_t next_time_update_ms;
 
-#define DIAG_PERIOD_S 20
 #define TIME_UPDATE_RETRY_MS 30000
-
-static void diag_at(const char *cmd)
-{
-	static char resp[400];
-	int err = nrf_modem_at_cmd(resp, sizeof(resp), "%s", cmd);
-
-	if (err == 0) {
-		LOG_INF("DIAG %s -> %s", cmd, resp);
-	} else {
-		LOG_WRN("DIAG %s failed: %d", cmd, err);
-	}
-}
-
-static void diag_work_fn(struct k_work *work);
-static K_WORK_DELAYABLE_DEFINE(diag_work, diag_work_fn);
-
-static void diag_work_fn(struct k_work *work)
-{
-	diag_at("AT+CEREG?");
-	diag_at("AT%CESQ=1");
-	diag_at("AT%XMONITOR");
-	k_work_reschedule(&diag_work, K_SECONDS(DIAG_PERIOD_S));
-}
 
 static void lte_event_handler(const struct lte_lc_evt *evt)
 {
@@ -61,19 +36,6 @@ static void lte_event_handler(const struct lte_lc_evt *evt)
 	}
 }
 
-static void diag_start(void)
-{
-	lte_lc_register_handler(lte_event_handler);
-	diag_at("AT+CGMR");
-	diag_at("AT%CSUS?");
-	diag_at("AT+CIMI");
-	diag_at("AT%XICCID");
-	diag_at("AT%XSYSTEMMODE?");
-	diag_at("AT%XBANDLOCK?");
-	diag_at("AT+CPSMS?");
-	k_work_reschedule(&diag_work, K_SECONDS(DIAG_PERIOD_S));
-}
-
 /**
  * @brief Initialize the modem and start LTE registration without waiting.
  *
@@ -92,7 +54,7 @@ int lte_m_connect(void)
 			return err;
 		}
 		modem_initialized = true;
-		diag_start();
+		lte_lc_register_handler(lte_event_handler);
 	}
 
 	if (!registration_started) {

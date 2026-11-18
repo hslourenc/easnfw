@@ -372,7 +372,10 @@ decision and its validation are tracked in :doc:`open_items`.
 UTC time is obtained from the nRF9151 modem's LTE network time using Nordic's
 date-time library, then transferred to SENSOR over an acknowledged IFL command.
 CLOUD starts LTE registration asynchronously and coalesces repeated UTC requests
-while registration or network time is pending.
+while registration or network time is pending. It leaves the modem online after
+registration, allowing later cloud operations to reuse the connection; a modem
+reset, coverage loss, or network-initiated deregistration may require a new
+registration.
 SENSOR anchors UTC to its monotonic uptime and formats record timestamps as
 ISO-8601 UTC strings with ``Z``. Each boot waits for valid UTC before acquiring
 data: ``app_utc_time__acquire()`` requests time from CLOUD, waits 30 s, and

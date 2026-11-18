@@ -22,6 +22,11 @@ environment:
 On Windows, run ``C:\ncs\v3.4.2\zephyr\zephyr-env.cmd`` from the NCS command
 prompt.
 
+When the repository is outside the SDK's west workspace, run ``west`` from the
+SDK workspace root (for example ``C:\ncs\v3.4.2``) and pass absolute source and
+build paths. Activating the Zephyr environment alone does not change the west
+workspace selected by the current directory.
+
 Building Firmware
 =================
 

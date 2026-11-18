@@ -29,6 +29,11 @@ int reset__capture_startup_reason(void);
 /** @brief Persist the CLOUD processor's reset cause received over IFL. */
 int reset__cloud_reason_set(uint32_t cause);
 
+#ifdef CONFIG_EASNFW_VERIFICATION_CODE
+/** @brief Verify the received reset causes were persisted in NVS. */
+int reset__verify_cloud_reason(void);
+#endif
+
 /** @brief Append the synchronized boot time to the NVS reset-history ring. */
 int reset__history_update(void);
 

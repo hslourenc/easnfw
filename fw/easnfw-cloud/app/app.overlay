@@ -1,6 +1,3 @@
-#include <softsim/nrf91_softsim_mcuboot_partitions.dtsi>
-#include <softsim/nrf91_softsim_sram.dtsi>
-
 &pinctrl {
 	uart2_ifl_default: uart2_ifl_default {
 		group1 {
