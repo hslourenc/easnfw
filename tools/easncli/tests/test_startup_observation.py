@@ -1,6 +1,7 @@
 import unittest
 import contextlib
 import io
+import json
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -209,14 +210,29 @@ class StartupObservationTests(unittest.TestCase):
 
         def wait(port, statuses, timeout, log_lines):
             timeouts.append(timeout)
-            return "TCSTATUS_RESETDONE" if len(timeouts) == 1 else "TCSTATUS_SUCCESS"
+            return ("TCSTATUS_RESETDONE" if len(timeouts) == 1 else
+                    "TCSTATUS_INCONCLUSIVE - cellular UTC was unavailable")
 
         with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "result"
             with patch.object(easncli.serial, "Serial", FakeSerial), \
                  patch.object(easncli, "wait_for_status", side_effect=wait), \
                  contextlib.redirect_stdout(io.StringIO()):
-                easncli.run_tc(48, "COM3", Path(directory) / "result")
+                result = easncli.run_tc(48, "COM3", target)
+            self.assertEqual(json.loads((target / "result.json").read_text()), result)
         self.assertEqual(timeouts, [15.0, 960.0])
+        self.assertTrue(result["passed"])
+        self.assertTrue(result["need_further_verif"])
+        self.assertEqual(result["further_verif_type"], "cellular-time")
+
+    def test_backend_inconclusive_and_cellular_success_classification(self):
+        backend = easncli.result_from_status(
+            "TCSTATUS_INCONCLUSIVE - backend unavailable", 11
+        )
+        self.assertEqual(backend["further_verif_type"], "cloud-backend")
+        success = easncli.result_from_status("TCSTATUS_SUCCESS - UTC restored", 48)
+        self.assertFalse(success["need_further_verif"])
+        self.assertIsNone(success["further_verif_type"])
 
 
 if __name__ == "__main__":

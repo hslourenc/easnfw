@@ -151,7 +151,8 @@ content:
   other checks succeed.
 * `further_verif_type`: string that indicates how the test case results are
   supposed to be further verified if `need_further_verif` is `true`, `null`
-  otherwise.
+  otherwise. For example, cases that need further verification on the cloud
+  platform report ``cloud-backend``.
 * `message`: status message from CLI_H, starting at the `TCSTATUS_` marker with
   shell prompt and terminal color escape sequences removed.
 * `data`: list of strings indicating the path to the any additional files
@@ -515,13 +516,9 @@ have booted, run CLI_C against SENSOR's VCOM console. CLI_C's reset command
 coordinates a CLOUD reset and then resets SENSOR before each test case, so
 leave both boards connected and powered throughout the suite.
 
-The current bench has the environmental sensor but no working SIM. Therefore,
-do not treat TC-048 cellular UTC synchronization as completed verification.
-Use ``easncli tcfull --implemented-only --no-sim`` to run only
-implemented cases that do not need cellular service (add ``--no-env-sensor``
-on benches without the sensor). TC-048 may still be run
-separately to verify its pre-sync checks, but with no SIM or cellular service
-its final result is inconclusive.
+On benches without a working SIM or cellular service, use
+``easncli tcfull --implemented-only --no-sim``; add ``--no-env-sensor`` when
+the environmental sensor is also unavailable.
 
 REQ-023: Self-test Sequence
 ---------------------------
@@ -2173,9 +2170,10 @@ through a temporary outage.
 CLI_H coverage
 """"""""""""""
 
-The automated HIL check simulates a network outage: it invalidates the UTC
+The automated HIL check simulates a time-sync outage: it invalidates the UTC
 anchor and makes SENSOR ignore UTC responses from EASNFW-CLOUD for five
-seconds. It then runs the same ``app_utc_time__acquire()`` loop used at
+seconds; it does not disconnect LTE. It then runs the same
+``app_utc_time__acquire()`` loop used at
 production startup. As CLI_H bypasses normal startup, the test first captures
 the SENSOR reset cause so the CLOUD reset cause can be persisted. The test
 verifies that UTC was inaccessible (``-ENODATA``) during the outage, that

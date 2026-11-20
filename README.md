@@ -207,14 +207,13 @@ automatically selects the only serial port visible to the host; use
 Each run creates a timestamped directory containing `result.json` and device
 and CLI logs.
 
-The current bench has an external environmental sensor, but cellular
-registration is unavailable. TC-007, TC-025, TC-026, and TC-032 depend on the
-sensor; TC-048 needs a SIM and cellular service to complete UTC synchronization.
-Use `--no-env-sensor` on benches without the sensor and `--no-sim` without
-cellular service. TC-048 can still be run individually, but without cellular
-service it ends inconclusively. The sampling tests create retained records on
-the SD card with synthetic timestamps; see the verification chapter for their
-HIL-only overrides and limitations.
+TC-007, TC-025, TC-026, and TC-032 depend on the environmental sensor; TC-048
+needs a SIM and cellular service to complete UTC synchronization. Use
+`--no-env-sensor` on benches without the sensor and `--no-sim` without cellular
+service. TC-048 can still be run individually, but without cellular service it
+ends inconclusively. The sampling tests create retained records on the SD card
+with synthetic timestamps; see the verification chapter for their HIL-only
+overrides and limitations.
 
 Use `--pristine` when changing image types so that the previous configuration
 is removed.

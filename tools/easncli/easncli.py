@@ -69,14 +69,16 @@ def status_message(status_line: str) -> str:
     return ANSI_ESCAPE_RE.sub("", message).strip()
 
 
-def result_from_status(status_line: str) -> dict[str, object]:
+def result_from_status(status_line: str, test_case: int) -> dict[str, object]:
     """Convert a host-side status line into the documented result schema."""
     passed = "TCSTATUS_FAIL" not in status_line
     inconclusive = "TCSTATUS_INCONCLUSIVE" in status_line
     return {
         "passed": passed,
         "need_further_verif": inconclusive,
-        "further_verif_type": "cloud-backend" if inconclusive else None,
+        "further_verif_type": (
+            "cellular-time" if test_case == 48 else "cloud-backend"
+        ) if inconclusive else None,
         "message": status_message(status_line),
         "data": [],
     }
@@ -306,7 +308,7 @@ def run_tc(test_case: int, requested_port: str | None,
                 result_line = wait_for_status(
                     port, ("SUCCESS", "FAIL", "INCONCLUSIVE"), timeout, log_lines
                 )
-                result = result_from_status(result_line)
+                result = result_from_status(result_line, test_case)
     except (TimeoutError, serial.SerialException) as exc:
         device_log.write_text(
             "\n".join(log_lines + [f"error={exc}"]) + "\n",
